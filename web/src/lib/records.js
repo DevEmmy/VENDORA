@@ -122,7 +122,14 @@ export async function buildWorkbook(s, { from, to, score }) {
   return { blob, fileName, sha256: hash, invoices: live.length, total, verifiedShare: total ? verified / total : 0 };
 }
 
-export function downloadBlob(blob, name) {
+/** Save a file. Inside the hosted Claude page this asks the viewer to confirm; elsewhere it downloads directly. */
+export async function downloadBlob(blob, name) {
+  try {
+    if (typeof window !== 'undefined' && window.claude?.use) {
+      const dl = await window.claude.use('downloads');
+      if (dl) { await dl.save({ filename: name, data: blob }); return; }
+    }
+  } catch (e) { if (e && e.code === 'declined') return; }
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = name;
   document.body.appendChild(a); a.click(); a.remove();

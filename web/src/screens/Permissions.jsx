@@ -13,6 +13,7 @@ const HELP = {
   nomic: 'No microphone found on this phone.',
   nocam: 'No camera found on this phone.',
   denied: BLOCKED,
+  embedded: 'This page is shown inside another website, which blocks this. Open Vendora on its own web address to use it.',
 };
 
 function Row({ icon: Icon, title, why, state, action, onClick, busy, extra }) {

@@ -19,6 +19,7 @@ export const VOICE_HELP = {
   insecure: 'Voice only works when Vendora is opened from its web link (https). Type below for now.',
   denied: 'Microphone is blocked. Tap the lock icon next to the web address, allow Microphone, then try again.',
   nomic: 'No microphone found on this device.',
+  embedded: 'Voice is blocked because this page is shown inside another website. Type below for now; voice works when Vendora is opened on its own web address.',
   network: 'Voice needs internet on this phone. Type below, it works offline.',
   nospeech: "I didn't hear anything. Tap the mic and speak close to the phone.",
   failed: 'Voice stopped unexpectedly. Tap the mic to try again, or type below.',
@@ -31,7 +32,7 @@ async function askMic() {
     s.getTracks().forEach(t => t.stop());
     return 'ok';
   } catch (e) {
-    if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) return 'denied';
+    if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) { let emb = true; try { emb = window.self !== window.top; } catch { /* cross-origin */ } return emb ? 'embedded' : 'denied'; }
     if (e && e.name === 'NotFoundError') return 'nomic';
     return 'ok';
   }

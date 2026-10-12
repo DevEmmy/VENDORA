@@ -3,6 +3,7 @@ import { ShieldCheck, ShieldAlert, Fingerprint, Link2, Undo2, Clock, Download, C
 import { useStore, Top } from '../components/ui.jsx';
 import { useNav } from '../App.jsx';
 import { integrity } from '../lib/store.js';
+import { downloadBlob } from '../lib/records.js';
 import { EVIDENCE, verifySignatures } from '../lib/ledger.js';
 import { naira, timeAgo } from '../lib/format.js';
 
@@ -31,11 +32,7 @@ export default function Records() {
     for (const t of [...s.txns].reverse()) rows.push([new Date(t.at).toISOString(), t.type, (t.items || []).map(i => `${i.qty} ${i.name}`).join('; ') || t.note || '', t.amount, t.paid, t.customerName || '', EVIDENCE[em.get(t.id)]?.label || '', t.reversed ? 'yes' : '']);
     rows.push([], ['seal', head ? `${head.seq}:${head.hash}` : '', 'device key', s.ledgerKey?.fingerprint || '']);
     const csv = rows.map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-    a.download = `${(s.profile.businessName || 'vendora').replace(/\W+/g, '-')}-statement.csv`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    downloadBlob(new Blob([csv], { type: 'text/csv' }), `${(s.profile.businessName || 'vendora').replace(/\W+/g, '-')}-statement.csv`);
   }
 
   return (

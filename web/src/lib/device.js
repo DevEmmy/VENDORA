@@ -10,6 +10,7 @@ export async function permissionState(name) {
   } catch { return 'prompt'; }
 }
 
+export const embedded = () => { try { return window.self !== window.top; } catch { return true; } };
 export function secure() { return typeof window !== 'undefined' && window.isSecureContext; }
 
 /** Ask for the microphone. Returns 'granted' | 'denied' | 'nomic' | 'insecure' | 'unsupported'. */
@@ -22,7 +23,7 @@ export async function requestMic() {
     return 'granted';
   } catch (e) {
     if (e?.name === 'NotFoundError') return 'nomic';
-    return 'denied';
+    return embedded() ? 'embedded' : 'denied';
   }
 }
 
@@ -36,7 +37,7 @@ export async function requestCamera() {
     return 'granted';
   } catch (e) {
     if (e?.name === 'NotFoundError') return 'nocam';
-    return 'denied';
+    return embedded() ? 'embedded' : 'denied';
   }
 }
 
@@ -58,7 +59,7 @@ export function preciseLocation() {
     }, e => {
       if (done) return;
       done = true; navigator.geolocation.clearWatch(watch);
-      reject(new Error(e.code === 1 ? 'Location is blocked. Tap the lock icon next to the web address, allow Location, then try again.' : "Couldn't get your location. Turn on Location (GPS) on your phone and try again."));
+      reject(new Error(e.code === 1 && embedded() ? 'This page is shown inside another website, which blocks location. Open Vendora on its own web address to pin your shop.' : e.code === 1 ? 'Location is blocked. Tap the lock icon next to the web address, allow Location, then try again.' : "Couldn't get your location. Turn on Location (GPS) on your phone and try again."));
     }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
     setTimeout(finish, 12000); // take the best fix after 12 seconds
   });
