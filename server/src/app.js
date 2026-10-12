@@ -28,7 +28,9 @@ function createApp(opts = {}) {
   const allowed = (process.env.CORS_ORIGINS || '*').split(',').map(x => x.trim());
   app.use((req, res, next) => {
     const origin = req.get('origin');
-    if (origin && (allowed.includes('*') || allowed.includes(origin))) {
+    const ok = origin && allowed.some(a => a === '*' || a === origin ||
+      (a.includes('*') && new RegExp('^' + a.split('*').map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[a-z0-9-]+') + '$').test(origin)));
+    if (ok) {
       res.set('Access-Control-Allow-Origin', origin);
       res.set('Vary', 'Origin');
       res.set('Access-Control-Allow-Headers', 'content-type, x-vendora-key');

@@ -197,3 +197,16 @@ test('natural voice: key stays on the server, phone gets a stream link', async (
     assert.ok(!JSON.stringify(r.body).includes('secret-key'));
   } finally { await s.close(); global.fetch = realFetch; delete process.env.YARNGPT_API_KEY; }
 });
+
+test('CORS allows the Vendora website on github.io and onrender.com, not other sites', async () => {
+  process.env.CORS_ORIGINS = 'https://devemmy.github.io,https://*.onrender.com';
+  const s = await start();
+  try {
+    const base = `http://127.0.0.1:${s.srv.address().port}/health`;
+    const h = async o => (await fetch(base, { headers: { origin: o } })).headers.get('access-control-allow-origin');
+    assert.equal(await h('https://vendora-app.onrender.com'), 'https://vendora-app.onrender.com');
+    assert.equal(await h('https://devemmy.github.io'), 'https://devemmy.github.io');
+    assert.equal(await h('https://evil.example.com'), null);
+    assert.equal(await h('https://x.onrender.com.evil.com'), null);
+  } finally { await s.close(); delete process.env.CORS_ORIGINS; }
+});

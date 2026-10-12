@@ -1,6 +1,18 @@
-# One-click deploy of the Vendora server on Render (free plan works for demos).
-# It holds the YarnGPT key so the website never exposes it.
+# One-click deploy on Render (free plan): the Vendora website and the Vendora server.
+# The server holds the YarnGPT key so the website never exposes it.
 services:
+  - type: web
+    name: vendora-app
+    runtime: static
+    rootDir: web
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: VITE_TTS_URL
+        value: https://vendora-server-pt7c.onrender.com
+
   - type: web
     name: vendora-server
     runtime: node
@@ -15,4 +27,4 @@ services:
       - key: YARNGPT_VOICE
         value: idera
       - key: CORS_ORIGINS
-        value: https://devemmy.github.io
+        value: https://devemmy.github.io,https://*.onrender.com
