@@ -85,11 +85,11 @@ def main():
         nav(page, 'Sell')
         page.get_by_label('Find an item to sell').fill('ric')
         page.get_by_label('Find an item to sell').press('Enter')
-        assert page.locator('.tile').count() == 1, page.locator('.tile').count()
+        assert page.locator('.ptile').count() == 1, page.locator('.ptile').count()
         page.get_by_label('Find an item to sell').fill('zzz')
         expect(page.get_by_text('No item called "zzz"')).to_be_visible()
         page.get_by_role('button', name='Clear search').click()
-        assert page.locator('.tile').count() >= 6
+        assert page.locator('.ptile').count() >= 6
         page.get_by_role('button', name='Add Rice (bag)').click()
         expect(page.locator('.cartbar')).to_contain_text('1 item')
         page.get_by_role('button', name='Charge').click()

@@ -175,3 +175,25 @@ test('evidence workbook submission is checked against its fingerprint', async ()
     assert.equal(r.body.length, 1); assert.equal(r.body[0].file, undefined);
   } finally { await s.close(); }
 });
+
+test('natural voice: key stays on the server, phone gets a stream link', async () => {
+  const realFetch = global.fetch;
+  process.env.YARNGPT_API_KEY = 'secret-key';
+  let seen = null;
+  global.fetch = async (url, opts) => {
+    if (String(url).startsWith('https://api.yarngpt.ai')) {
+      seen = { url, auth: opts.headers.authorization, body: JSON.parse(opts.body) };
+      return new Response(JSON.stringify({ ticket: 't1', stream_url: '/api/v1/tts/stream/t1', expires_in: 300 }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    return realFetch(url, opts);
+  };
+  const s = await start();
+  try {
+    const r = await s.call('POST', '/api/tts', { text: 'Recorded. Rice: 2 bags left.' });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.url, 'https://api.yarngpt.ai/api/v1/tts/stream/t1');
+    assert.equal(seen.auth, 'Bearer secret-key');
+    assert.equal(seen.body.voice, 'idera');
+    assert.ok(!JSON.stringify(r.body).includes('secret-key'));
+  } finally { await s.close(); global.fetch = realFetch; delete process.env.YARNGPT_API_KEY; }
+});

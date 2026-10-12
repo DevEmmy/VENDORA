@@ -8,6 +8,7 @@ import { naira } from '../lib/format.js';
 import { haptic } from '../lib/voice.js';
 import { mapsUrl } from '../lib/device.js';
 import ShopArt from '../components/ShopArt.jsx';
+import ProductArt from '../components/ProductArt.jsx';
 import { kmFrom, fmtKm } from './Hub.jsx';
 
 export default function SellerPage({ id, productId }) {
@@ -65,6 +66,7 @@ export default function SellerPage({ id, productId }) {
             const saving = mine?.cost ? mine.cost - c.price : 0;
             return (
               <div key={c.key + c.unit} className="stock-row" style={{ borderLeftColor: n ? 'var(--royal)' : 'transparent' }}>
+                <span className="thumb-art"><ProductArt k={c.key} rounded={0} /></span>
                 <div className="grow">
                   <div style={{ fontWeight: 800, fontSize: 15 }}>{c.name}</div>
                   <div style={{ fontWeight: 700, marginTop: 3 }}>{naira(c.price)} <span className="small">per {c.unit}, min {c.moq}</span></div>

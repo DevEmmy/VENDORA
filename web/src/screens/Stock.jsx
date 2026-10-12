@@ -5,6 +5,7 @@ import { useNav } from '../App.jsx';
 import { quickRestock, saveProduct, deleteProduct, toast, isOwner } from '../lib/store.js';
 import { naira, qtyUnit, timeAgo } from '../lib/format.js';
 import { haptic } from '../lib/voice.js';
+import ProductArt from '../components/ProductArt.jsx';
 
 const UNITS = ['bag', 'carton', 'piece', 'paint', 'crate', 'bottle', 'tin', 'pack', 'kg'];
 const COMMON = [
@@ -67,6 +68,7 @@ function MyStock({ openAdd }) {
             const n = delta[p.id] || 0;
             return (
               <div key={p.id} className={'stock-row' + (p.qty <= 0 ? ' out' : p.qty <= p.lowAt ? ' low' : '')}>
+                <span className="thumb-art"><ProductArt product={p} rounded={0} /></span>
                 <button className="grow" style={{ textAlign: 'left', minHeight: 48 }} onClick={() => owner && setEdit(p)} aria-label={`Edit ${p.name}`}>
                   <div style={{ fontWeight: 800, fontSize: 15 }} className="clip">{p.name}</div>
                   <div className="row" style={{ gap: 6, marginTop: 5 }}>

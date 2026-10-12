@@ -64,6 +64,19 @@ Without `VITE_SERVER_URL`, the app runs fully on the phone with Wema simulated.
 
 **Testing WhatsApp without Meta:** `POST /whatsapp/dev/inbound {"phone":"0803...","text":"I sold 2 bags rice"}`, then see replies at `GET /whatsapp/dev/outbox?phone=0803...`. In the app, **WhatsApp** screen sends test messages through the server automatically.
 
+## Natural Nigerian voice (YarnGPT)
+
+Vendora speaks replies with **YarnGPT** (natural Nigerian voices; default female voice `idera`, change with `YARNGPT_VOICE`). If YarnGPT isn't set up or is unreachable, it falls back to the phone's own voice (a female English/Nigerian voice where available).
+
+The YarnGPT key must stay secret, so the website asks the Vendora server for a short-lived audio link:
+
+1. Deploy the server: on render.com choose **New → Blueprint** and pick this repo (it reads `render.yaml`). Set `YARNGPT_API_KEY` there.
+2. In GitHub: **Settings → Secrets and variables → Actions → Variables**, add `VENDORA_SERVER_URL` = your Render address (e.g. `https://vendora-server.onrender.com`). The next push redeploys the website with the voice on.
+
+Demo shortcut (not for real use): a repository secret `YARNGPT_DEMO_KEY` builds the key into the public website, where anyone could read it and spend your credits.
+
+Permissions (microphone, camera, location, sound) are remembered on the phone after the first answer, and Talk only starts listening by itself once the microphone is already allowed.
+
 ## What works in this MVP
 
 | Feature | Where in the app | Status |

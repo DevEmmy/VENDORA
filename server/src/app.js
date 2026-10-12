@@ -116,6 +116,30 @@ function createApp(opts = {}) {
     res.json(((store.data.submissions) || []).filter(s => !phone || s.phone === phone).map(({ file, ...s }) => s));
   });
 
+  /**
+   * POST /api/tts {text}: speak a reply in YarnGPT's natural Nigerian voice.
+   * The YarnGPT key stays on this server; the phone only gets a short-lived stream link (about 5 minutes).
+   */
+  app.post('/api/tts', async (req, res) => {
+    const key = process.env.YARNGPT_API_KEY;
+    if (!key) return res.status(503).json({ error: 'Natural voice is not set up on this server.' });
+    const text = String((req.body || {}).text || '').trim().slice(0, 1200);
+    if (!text) return res.status(400).json({ error: 'text is required' });
+    const voice = process.env.YARNGPT_VOICE || 'idera';
+    const prepare = body => fetch('https://api.yarngpt.ai/api/v1/tts/prepare', {
+      method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` }, body: JSON.stringify(body),
+    });
+    try {
+      let r = await prepare({ text, voice, output_format: 'mp3' });
+      if (r.status === 400 || r.status === 404) r = await prepare({ text, output_format: 'mp3' }); // voice renamed: fall back to the default voice
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.stream_url) return res.status(502).json({ error: j.user_message || j.error || 'Voice service unavailable' });
+      res.json({ url: 'https://api.yarngpt.ai' + j.stream_url, expiresIn: j.expires_in || 300 });
+    } catch {
+      res.status(502).json({ error: 'Voice service unavailable' });
+    }
+  });
+
   // Server-side score check (lets Wema recompute from the records the trader agreed to share).
   app.post('/api/score', (req, res) => {
     const s = businessScore(req.body || {});

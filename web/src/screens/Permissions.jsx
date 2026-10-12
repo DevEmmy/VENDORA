@@ -3,7 +3,7 @@ import { Mic, Volume2, Camera, MapPin, CheckCircle2, CircleAlert, ExternalLink }
 import { useStore, Top } from '../components/ui.jsx';
 import { useNav } from '../App.jsx';
 import { permissionState, requestMic, requestCamera, preciseLocation, secure, mapsUrl, fmtCoord } from '../lib/device.js';
-import { setLocation, toast } from '../lib/store.js';
+import { setLocation, toast, recordPerm } from '../lib/store.js';
 import { primeSpeech, speak, voiceSupport } from '../lib/voice.js';
 
 const BLOCKED = 'Blocked. Tap the lock icon next to the web address, choose Permissions, allow it, then tap the button again.';
@@ -38,26 +38,29 @@ function Row({ icon: Icon, title, why, state, action, onClick, busy, extra }) {
 /** Reusable block: onboarding uses it too. */
 export function PermissionList() {
   const s = useStore();
-  const [mic, setMic] = useState('prompt');
-  const [cam, setCam] = useState('prompt');
-  const [sound, setSound] = useState(null);
+  const rec = s.profile.perms || {};
+  const [mic, setMic] = useState(rec.mic?.state || 'prompt');
+  const [cam, setCam] = useState(rec.camera?.state || 'prompt');
+  const [sound, setSound] = useState(rec.sound?.state || null);
   const [busy, setBusy] = useState('');
   const [locErr, setLocErr] = useState('');
   const loc = s.profile.location;
 
   useEffect(() => {
     if (!secure()) { setMic('insecure'); setCam('insecure'); return; }
-    permissionState('microphone').then(setMic);
-    permissionState('camera').then(setCam);
+    // The browser's own answer wins when it has one; otherwise keep what this phone allowed before.
+    permissionState('microphone').then(st => { if (st === 'granted' || st === 'denied') { setMic(st); recordPerm('mic', st); } });
+    permissionState('camera').then(st => { if (st === 'granted' || st === 'denied') { setCam(st); recordPerm('camera', st); } });
   }, []);
 
   async function askMic() {
     setBusy('mic'); primeSpeech();
     const r = await requestMic(); setMic(r); setBusy('');
+    if (r === 'granted' || r === 'denied') recordPerm('mic', r);
     if (r === 'granted') toast('Microphone allowed. You can talk to Vendora now.', 'good');
   }
-  async function askCam() { setBusy('cam'); const r = await requestCamera(); setCam(r); setBusy(''); if (r === 'granted') toast('Camera allowed.', 'good'); }
-  function testSound() { primeSpeech(); speak('Hello. Vendora is ready to talk with you.', s.profile.language === 'pcm' ? 'pcm' : 'en'); setSound('granted'); }
+  async function askCam() { setBusy('cam'); const r = await requestCamera(); setCam(r); setBusy(''); if (r === 'granted' || r === 'denied') recordPerm('camera', r); if (r === 'granted') toast('Camera allowed.', 'good'); }
+  function testSound() { primeSpeech(); speak('Hello. Vendora is ready to talk with you.', s.profile.language === 'pcm' ? 'pcm' : 'en'); setSound('granted'); recordPerm('sound', 'granted'); }
   async function getLoc() {
     setBusy('loc'); setLocErr('');
     try { const l = await preciseLocation(); setLocation(l); toast(`Shop location saved, accurate to ${l.accuracy} metres.`, 'good'); }

@@ -3,6 +3,7 @@
 //     getUserMedia so the browser shows its permission prompt at the right moment, then start recognition.
 // OUT: speechSynthesis. Phones only allow sound after a tap, so primeSpeech() is called on the first tap.
 import { LANGUAGES } from './i18n.js';
+import { SERVER_URL, API_KEY, YARNGPT_KEY, YARNGPT_VOICE } from './config.js';
 
 const SR = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
 
@@ -42,7 +43,7 @@ async function askMic() {
  * Start listening. Callbacks: onState('starting'|'listening'|'idle'), onPartial(text), onFinal(text), onError(code).
  * Returns { stop() }.
  */
-export function listen(lang, { onState, onPartial, onFinal, onError }) {
+export function listen(lang, { onState, onPartial, onFinal, onError }, { micKnown = false } = {}) {
   const support = voiceSupport();
   let stopped = false, rec = null, finalText = '';
   const ctl = { stop() { stopped = true; try { rec && rec.stop(); } catch { /* ignore */ } } };
@@ -50,7 +51,7 @@ export function listen(lang, { onState, onPartial, onFinal, onError }) {
   onState?.('starting');
   const code = (LANGUAGES.find(l => l.code === lang) || LANGUAGES[0]).speech;
   (async () => {
-    const mic = await askMic();
+    const mic = micKnown ? 'ok' : await askMic();
     if (mic !== 'ok') { onError?.(mic); onState?.('idle'); return; }
     if (stopped) { onState?.('idle'); return; }
     let triedFallback = false;
@@ -100,26 +101,73 @@ export function primeSpeech() {
 }
 export const canSpeak = () => typeof window !== 'undefined' && !!window.speechSynthesis;
 
+const FEMALE = /ezinne|female|woman|zira|samantha|victoria|karen|moira|tessa|serena|susan|hazel|libby|sonia|natasha|aria|jenny|google uk english female/i;
 function pickVoice(lang) {
   if (!voices.length) loadVoices();
   const want = (LANGUAGES.find(l => l.code === lang) || LANGUAGES[0]).tts;
-  const by = p => voices.find(p);
-  return by(v => v.lang === want) || by(v => v.lang?.replace('_', '-') === want) || by(v => v.lang === 'en-NG') ||
-    by(v => /en[-_]GB/.test(v.lang)) || by(v => /en[-_]US/.test(v.lang)) || by(v => v.lang?.startsWith('en')) || voices[0] || null;
+  const pick = (test) => voices.find(v => test(v) && FEMALE.test(v.name)) || voices.find(test);
+  return pick(v => v.lang === want || v.lang?.replace('_', '-') === want) || pick(v => /en[-_]NG/i.test(v.lang)) ||
+    pick(v => /en[-_]GB/i.test(v.lang)) || pick(v => /en[-_]US/i.test(v.lang)) || pick(v => v.lang?.startsWith('en')) || voices[0] || null;
 }
 
-export function speak(text, lang = 'en') {
-  if (!canSpeak() || !text) return;
+const say = text => text.replace(/₦\s?([\d,]+)/g, (_, n) => `${n} naira`).replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '').replace(/\s+/g, ' ').trim();
+
+function deviceSpeak(clean, lang) {
+  if (!canSpeak()) return;
   try {
-    const clean = text.replace(/₦\s?([\d,]+)/g, (_, n) => `${n} naira`).replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '').replace(/\s+/g, ' ');
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(clean);
     const v = pickVoice(lang);
     if (v) { u.voice = v; u.lang = v.lang; }
-    u.rate = 1; u.pitch = 1; u.volume = 1;
-    // Chrome sometimes needs a tick after cancel()
-    setTimeout(() => window.speechSynthesis.speak(u), 60);
+    u.rate = 1; u.pitch = 1.05; u.volume = 1;
+    setTimeout(() => window.speechSynthesis.speak(u), 60); // Chrome needs a tick after cancel()
   } catch { /* speech not available */ }
 }
+
+// ---------- YarnGPT: natural Nigerian voice ----------
+let current = null;
+let yarnDown = 0; // after a failure, use the phone voice for a while instead of waiting each time
+async function yarnUrl(text) {
+  if (SERVER_URL) {
+    const r = await fetch(SERVER_URL.replace(/\/$/, '') + '/api/tts', { method: 'POST', headers: { 'content-type': 'application/json', ...(API_KEY ? { 'x-vendora-key': API_KEY } : {}) }, body: JSON.stringify({ text }) });
+    if (!r.ok) throw new Error('tts ' + r.status);
+    return (await r.json()).url;
+  }
+  if (YARNGPT_KEY) {
+    const body = { text, voice: YARNGPT_VOICE, output_format: 'mp3' };
+    const call = b => fetch('https://api.yarngpt.ai/api/v1/tts/prepare', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${YARNGPT_KEY}` }, body: JSON.stringify(b) });
+    let r = await call(body);
+    if (r.status === 400 || r.status === 404) { const { voice, ...rest } = body; r = await call(rest); } // voice renamed: use default voice
+    if (!r.ok) throw new Error('tts ' + r.status);
+    const j = await r.json();
+    return 'https://api.yarngpt.ai' + j.stream_url;
+  }
+  return null;
+}
+export const hasNaturalVoice = () => !!(SERVER_URL || YARNGPT_KEY);
+
+/** Speak a reply: YarnGPT's natural Nigerian voice when available, the phone's own voice otherwise. */
+export async function speak(text, lang = 'en') {
+  if (!text) return;
+  const clean = say(text);
+  try { current?.pause(); } catch { /* ignore */ }
+  try { window.speechSynthesis?.cancel(); } catch { /* ignore */ }
+  if (hasNaturalVoice() && Date.now() > yarnDown) {
+    try {
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), 6000);
+      const url = await Promise.race([yarnUrl(clean.slice(0, 1200)), new Promise((_, rej) => ctl.signal.addEventListener('abort', () => rej(new Error('slow'))))]);
+      clearTimeout(timer);
+      if (url) {
+        const a = new Audio(url);
+        current = a;
+        await a.play();
+        return;
+      }
+    } catch { yarnDown = Date.now() + 2 * 60e3; }
+  }
+  deviceSpeak(clean, lang);
+}
+export function stopSpeaking() { try { current?.pause(); } catch { /* ignore */ } try { window.speechSynthesis?.cancel(); } catch { /* ignore */ } }
 
 export function haptic(ms = 12) { try { navigator.vibrate?.(ms); } catch { /* ignore */ } }

@@ -13,7 +13,7 @@ import { SERVER_URL, API_KEY } from './config.js';
 const KEY = 'vendora:v2';
 
 export const emptyState = () => ({
-  profile: { name: '', phone: '', email: '', businessName: '', businessType: '', city: '', country: 'Nigeria', currency: 'NGN', language: 'en', accountNumber: null, accountName: null, onboarded: false, premium: false, consentShareData: false, whatsappLinked: false, whatsappAlerts: true, speakReplies: true, autoRepay: true, demo: false, location: null },
+  profile: { name: '', phone: '', email: '', businessName: '', businessType: '', city: '', country: 'Nigeria', currency: 'NGN', language: 'en', accountNumber: null, accountName: null, onboarded: false, premium: false, consentShareData: false, whatsappLinked: false, whatsappAlerts: true, speakReplies: true, autoRepay: true, demo: false, location: null, perms: {} },
   products: [], txns: [], customers: [], staff: [], currentStaffId: null,
   savings: { enabled: false, percent: 5, balance: 0, lastSavedDay: null, history: [] },
   loans: [], paymentRequests: [], credits: [], chat: [], orders: [], usedReceipts: {},
@@ -528,6 +528,7 @@ export function withdrawSavings(amount) {
 export function setLocation(loc) {
   setState(d => {
     d.profile.location = loc;
+    d.profile.perms = { ...(d.profile.perms || {}), location: { state: 'granted', at: Date.now() } };
     appendEntry(d, { kind: 'location', ref: 'shop', evidence: 'manual', data: { lat: loc.lat, lng: loc.lng, accuracy: loc.accuracy } });
   });
 }
@@ -614,6 +615,12 @@ export function staffSummary(now = Date.now()) {
 }
 
 // ---------- profile / onboarding ----------
+/** Remember what the phone allowed, so Vendora never asks again for something already granted. */
+export function recordPerm(name, value) {
+  if (state.profile.perms?.[name]?.state === value) return;
+  setState(d => { d.profile.perms = { ...(d.profile.perms || {}), [name]: { state: value, at: Date.now() } }; });
+}
+export const permOf = name => state.profile.perms?.[name]?.state || null;
 export function updateProfile(patch) { setState(d => { Object.assign(d.profile, patch); }); }
 export function completeSetup(fields) {
   setState(d => {
@@ -641,10 +648,11 @@ export function loadDemo() {
   let n = 0;
   for (const t of ordered) if (t.type === 'sale') t.invoiceNo = invoiceNo(++n);
   s.invoiceSeq = n;
+  s.profile.perms = state.profile.perms || {}; // permissions belong to this phone, keep them
   state = s; wemaCache = { key: null, api: null }; integrityCache = { key: '', value: null };
   persist(); listeners.forEach(l => l()); scheduleSign();
 }
-export function resetAll() { state = emptyState(); wemaCache = { key: null, api: null }; persist(); listeners.forEach(l => l()); }
+export function resetAll() { const perms = state.profile.perms || {}; state = emptyState(); state.profile.perms = perms; wemaCache = { key: null, api: null }; persist(); listeners.forEach(l => l()); }
 
 // ---------- sync with the Vendora server (WhatsApp entries, Wema credits, ledger anchoring) ----------
 let syncing = false;

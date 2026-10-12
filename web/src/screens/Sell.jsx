@@ -8,6 +8,7 @@ import { haptic } from '../lib/voice.js';
 import { qtySold } from '../lib/insights.js';
 import { startOfDay, DAY } from '../lib/format.js';
 import { PaymentRequestView } from './GetPaid.jsx';
+import ProductArt from '../components/ProductArt.jsx';
 
 export default function Sell() {
   const s = useStore();
@@ -39,21 +40,37 @@ export default function Sell() {
           <Empty icon={Plus} title="Add your items first" body="Once your stock is in Vendora, selling is just tapping." action={<button className="btn primary" onClick={() => go('stock', { add: true })}>Add items</button>} />
         ) : (
           products.length === 0 ? <Empty icon={Search} title={`No item called "${q}"`} body="Check the spelling, or add it to your stock." action={<button className="btn plain" onClick={() => setQ('')}>Show all items</button>} /> :
-          <div className="tiles">
-            {products.map(p => {
+          <div className="ptiles">
+            {products.map((p, i) => {
               const n = cart[p.id] || 0;
               const left = p.qty - n;
+              const top = i < 3 && !q && (sold[p.id]?.qty || 0) > 0;
               return (
-                <div key={p.id} style={{ position: 'relative' }}>
-                  <button className={'tile' + (n ? ' in-cart' : '')} style={{ width: '100%' }} onClick={() => add(p)} disabled={p.qty <= 0} aria-label={`Add ${p.name}`}>
-                    <span className="name">{p.name}</span>
-                    <span>
-                      <div className="price">{naira(p.price)}</div>
-                      <div className={'stock ' + (p.qty <= 0 ? 'pepper' : left <= p.lowAt ? 'amber' : 'muted')}>{p.qty <= 0 ? 'Out of stock' : `${qtyUnit(left, p.unit)} left`}</div>
+                <div key={p.id} className={'ptile' + (n ? ' in-cart' : '') + (p.qty <= 0 ? ' out' : '')}>
+                  <button className="ptile-main" onClick={() => add(p)} disabled={p.qty <= 0} aria-label={`Add ${p.name}`}>
+                    <span className="ptile-img">
+                      <ProductArt product={p} rounded={0} />
+                      {top && <span className="ribbon">Best seller</span>}
+                      {p.qty > 0 && left <= p.lowAt && <span className="ribbon low">Only {left} left</span>}
+                    </span>
+                    <span className="ptile-body">
+                      <span className="ptile-name">{p.name}</span>
+                      <span className="ptile-unit">per {p.unit}</span>
+                      <span className="ptile-price">{naira(p.price)}</span>
                     </span>
                   </button>
-                  {n > 0 && <span aria-hidden="true" style={{ position: 'absolute', top: -8, right: -6, minWidth: 30, height: 30, borderRadius: 999, background: 'var(--royal)', color: '#fff', fontWeight: 800, display: 'grid', placeItems: 'center', padding: '0 8px', boxShadow: '0 4px 10px rgba(31,85,224,.35)', pointerEvents: 'none' }}>{n}</span>}
-                  {n > 0 && <button onClick={() => remove(p)} aria-label={`Remove one ${p.name}`} style={{ position: 'absolute', bottom: 10, right: 10, width: 38, height: 38, borderRadius: 12, background: '#eef1f7', display: 'grid', placeItems: 'center' }}><Minus size={18} /></button>}
+                  <div className="ptile-foot">
+                    {p.qty <= 0 ? <span className="pill pepper">Out of stock</span> : n === 0 ? <>
+                      <span className="small">{qtyUnit(p.qty, p.unit)} in stock</span>
+                      <button className="add-dot" onClick={() => add(p)} aria-hidden="true" tabIndex={-1}><Plus size={18} strokeWidth={2.6} /></button>
+                    </> : (
+                      <div className="qty">
+                        <button onClick={() => remove(p)} aria-label={`Remove one ${p.name}`}><Minus size={16} strokeWidth={2.6} /></button>
+                        <b>{n}</b>
+                        <button onClick={() => add(p)} aria-label={`One more ${p.name}`}><Plus size={16} strokeWidth={2.6} /></button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               );
             })}

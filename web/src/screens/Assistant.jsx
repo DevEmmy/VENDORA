@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Mic, SendHorizontal, Square, Languages, Undo2, Plus, Volume2, VolumeX, CircleAlert } from 'lucide-react';
 import { useStore, Top, Sheet } from '../components/ui.jsx';
 import { useNav } from '../App.jsx';
-import { sendChat, reverseTxn, updateProfile, getState } from '../lib/store.js';
+import { sendChat, reverseTxn, updateProfile, getState, recordPerm, permOf } from '../lib/store.js';
 import { listen, voiceSupport, VOICE_HELP, speak, haptic, primeSpeech } from '../lib/voice.js';
 import { LANGUAGES, langLabel } from '../lib/i18n.js';
 import { clock } from '../lib/format.js';
@@ -29,21 +29,32 @@ export default function Assistant({ autoListen }) {
   const end = useRef(null);
   const input = useRef(null);
   const support = voiceSupport();
-  const [mic, setMic] = useState('granted');
-  useEffect(() => { permissionState('microphone').then(setMic); }, []);
+  // What the phone already allowed is remembered, so Vendora never asks twice.
+  const [mic, setMic] = useState(permOf('mic') || 'unknown');
   async function allowMic() {
     primeSpeech();
     const r = await requestMic();
     setMic(r);
-    if (r === 'granted') { setHelp(''); start(); } else setHelp(VOICE_HELP[r === 'denied' ? 'denied' : r] || VOICE_HELP.failed);
+    recordPerm('mic', r === 'granted' ? 'granted' : 'denied');
+    if (r === 'granted') { setHelp(''); start(); } else setHelp(VOICE_HELP[r] || VOICE_HELP.failed);
   }
   const live = state !== 'idle';
 
   useEffect(() => { end.current?.scrollIntoView({ block: 'end' }); }, [s.chat.length, partial]);
   useEffect(() => {
-    if (autoListen && support === 'ok') start();
-    else if (autoListen && support !== 'ok') setHelp(VOICE_HELP[support]);
-    return () => ctl.current?.stop();
+    let on = true;
+    (async () => {
+      let known = permOf('mic');
+      const api = await permissionState('microphone');
+      if (api === 'granted') { known = 'granted'; recordPerm('mic', 'granted'); }
+      if (api === 'denied') { known = 'denied'; recordPerm('mic', 'denied'); }
+      if (!on) return;
+      setMic(known || 'unknown');
+      // Only start listening by itself when the microphone is already allowed: no surprise permission pop-ups.
+      if (autoListen && support === 'ok' && known === 'granted') start();
+      else if (autoListen && support !== 'ok') setHelp(VOICE_HELP[support]);
+    })();
+    return () => { on = false; ctl.current?.stop(); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function submit(t, viaVoice = false) {
@@ -63,11 +74,11 @@ export default function Assistant({ autoListen }) {
     if (support !== 'ok') { setHelp(VOICE_HELP[support]); input.current?.focus(); return; }
     haptic(15);
     ctl.current = listen(getState().profile.language, {
-      onState: st => setVState(st),
+      onState: st => { setVState(st); if (st === 'listening') { recordPerm('mic', 'granted'); setMic('granted'); } },
       onPartial: p => setPartial(p),
       onFinal: f => submit(f, true),
-      onError: code => { if (code === 'denied') setMic('denied'); setVState('idle'); setPartial(''); setHelp(VOICE_HELP[code] || VOICE_HELP.failed); },
-    });
+      onError: code => { if (code === 'denied') { setMic('denied'); recordPerm('mic', 'denied'); } setVState('idle'); setPartial(''); setHelp(VOICE_HELP[code] || VOICE_HELP.failed); },
+    }, { micKnown: permOf('mic') === 'granted' });
   }
   function stop() { ctl.current?.stop(); }
 

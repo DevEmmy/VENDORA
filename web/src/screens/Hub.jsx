@@ -9,6 +9,7 @@ import { restockForecast } from '../lib/insights.js';
 import { distanceKm } from '../lib/device.js';
 import ShopArt from '../components/ShopArt.jsx';
 import Media from '../components/Media.jsx';
+import ProductArt from '../components/ProductArt.jsx';
 
 const CATS = [['rice', 'Rice'], ['beans', 'Beans'], ['garri', 'Garri'], ['indomie', 'Noodles'], ['milk', 'Milk'], ['tomato', 'Tomato'], ['oil', 'Oil'], ['sugar', 'Sugar'], ['flour', 'Flour']];
 
@@ -33,7 +34,8 @@ export function SellerCard({ v, item, loc }) {
         </div>
         <ChevronRight size={18} className="muted" />
       </div>
-      {item && <div className="row between" style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--line)' }}><span className="muted" style={{ fontSize: 14 }}>{item.name}</span><b>{naira(item.price)} <span className="small">/ {item.unit}</span></b></div>}
+      {item ? <div className="row between" style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--line)' }}><span className="row" style={{ gap: 10 }}><span className="thumb-art sm"><ProductArt k={item.key} rounded={0} /></span><span className="muted" style={{ fontSize: 14 }}>{item.name}</span></span><b>{naira(item.price)} <span className="small">/ {item.unit}</span></b></div>
+        : <div className="mini-goods">{v.catalog.slice(0, 5).map(c => <span key={c.key + c.unit} className="thumb-art"><ProductArt k={c.key} rounded={0} /></span>)}</div>}
     </button>
   );
 }
@@ -47,6 +49,7 @@ function AdCard({ v, loc }) {
         <div className="row" style={{ gap: 6 }}><b className="clip">{v.name}</b><BadgeCheck size={16} className="royal" style={{ flex: 'none' }} /></div>
         <div className="small clip" style={{ marginTop: 2 }}>{v.about}</div>
         <div className="small" style={{ marginTop: 6, fontWeight: 700, color: 'var(--text-2)' }}>{v.market}, {fmtKm(kmFrom(loc, v))}</div>
+        <div className="mini-goods">{v.catalog.slice(0, 4).map(c => <span key={c.key + c.unit} className="thumb-art"><ProductArt k={c.key} rounded={0} /></span>)}</div>
       </div>
     </button>
   );
@@ -85,6 +88,22 @@ export default function Hub({ focus }) {
     return pa - pb || kmFrom(loc, a) - kmFrom(loc, b);
   });
   const itemFor = v => cat ? v.catalog.find(c => c.key === cat) : null;
+  const deals = useMemo(() => {
+    const mine = {};
+    for (const p of s.products) { const k = keyFor(p); if (k) mine[k + p.unit] = p; }
+    return sellers().flatMap(v => v.catalog.map(item => {
+      const p = mine[item.key + item.unit];
+      const saving = p?.cost && item.price < p.cost && item.price > p.cost * 0.6 ? p.cost - item.price : 0;
+      return { seller: v, item, saving, product: p };
+    })).filter(d => !cat || d.item.key === cat)
+      .sort((a, b) => (b.saving > 0) - (a.saving > 0) || kmFrom(loc, a.seller) - kmFrom(loc, b.seller) || a.item.price - b.item.price)
+      .slice(0, cat ? 12 : 10);
+  }, [s.products, cat, loc]); // eslint-disable-line react-hooks/exhaustive-deps
+  const bestDeal = useMemo(() => {
+    let best = null;
+    for (const p of s.products) for (const o of offersFor(p)) if (o.saving > 0 && (!best || o.saving * Math.max(1, p.lowAt) > best.saving * Math.max(1, best.product.lowAt))) best = { ...o, product: p };
+    return best;
+  }, [s.products]);
   const typing = q.trim().length > 0;
 
   return (
@@ -97,7 +116,7 @@ export default function Hub({ focus }) {
           <div className="h2" style={{ marginTop: 0 }}>{items.length ? `${items.length} offer${items.length === 1 ? '' : 's'} for "${q.trim()}"` : `Sellers matching "${q.trim()}"`}</div>
           {items.length > 0 && <div className="list">{items.map(({ seller: v, item }) => (
             <button key={v.id + item.key + item.unit} className="item" onClick={() => go('seller', { id: v.id })}>
-              <span className="avatar-sm" style={{ background: v.color, color: '#fff' }}><Store size={18} /></span>
+              <span className="thumb-art"><ProductArt k={item.key} rounded={0} /></span>
               <span className="grow"><div className="t clip">{item.name}</div><div className="s clip">{v.name}, {v.market}, {fmtKm(kmFrom(loc, v))}</div></span>
               <span style={{ textAlign: 'right' }}><div className="amt">{naira(item.price)}</div><div className="s">per {item.unit}</div></span>
             </button>
@@ -120,6 +139,42 @@ export default function Hub({ focus }) {
               <button className="btn leaf full" style={{ marginTop: 12 }} onClick={() => confirmDelivery(o.id)}><PackageCheck size={20} />I have received it</button>
             </div>
           ))}
+
+          {bestDeal && (
+            <button className="hero-deal" style={{ width: '100%', textAlign: 'left', marginTop: 12 }} onClick={() => go('seller', { id: bestDeal.seller.id })}>
+              <span className="grow">
+                <span className="tag">Deal for your shop</span>
+                <h3>Save {naira(bestDeal.saving)} on every {bestDeal.item.unit} of {bestDeal.product.name}</h3>
+                <span style={{ color: '#c5d3fb', fontSize: 14 }}>{naira(bestDeal.item.price)} at {bestDeal.seller.name}, {bestDeal.seller.market}</span>
+                <span className="btn kola sm" style={{ marginTop: 12 }}>Order now</span>
+              </span>
+              <span className="art"><ProductArt k={bestDeal.item.key} plain /></span>
+            </button>
+          )}
+
+          <div className="h2">Shop by item</div>
+          <div className="cat-row" role="tablist" aria-label="Shop by item">
+            {CATS.map(([k, l]) => (
+              <button key={k} className="cat" aria-pressed={cat === k} onClick={() => setCat(cat === k ? null : k)}>
+                <span className="ring2"><ProductArt k={k} rounded={0} /></span>{l}
+              </button>
+            ))}
+          </div>
+
+          <div className="h2">{cat ? `${CATS.find(c => c[0] === cat)[1]} deals` : 'Top deals near you'} {cat && <button className="more" onClick={() => setCat(null)}>Show all</button>}</div>
+          <div className="deals">
+            {deals.map(({ seller: v, item, saving }) => (
+              <button key={v.id + item.key + item.unit} className="deal" onClick={() => go('seller', { id: v.id })}>
+                <span className="im"><ProductArt k={item.key} rounded={0} />{saving > 0 && <span className="save">Save {naira(saving)}</span>}</span>
+                <span className="bd">
+                  <div className="nm">{item.name}</div>
+                  <div className="pr">{naira(item.price)} <span className="small">/ {item.unit}</span></div>
+                  <div className="sl"><BadgeCheck size={12} className="royal" style={{ verticalAlign: -2 }} /> {v.name}</div>
+                  <div className="sl">{v.market}, {fmtKm(kmFrom(loc, v))}, min {item.moq}</div>
+                </span>
+              </button>
+            ))}
+          </div>
 
           <div className="h2">Featured shops</div>
           <div className="gallery" style={{ margin: '0 -16px', padding: '0 16px 6px' }}>
@@ -145,10 +200,6 @@ export default function Hub({ focus }) {
           </>}
 
           <div className="h2">{focusP ? `Sellers for ${focusP.name}` : 'All verified sellers'}</div>
-          <div className="chips scroll">
-            <button className="chip" aria-pressed={!cat} onClick={() => setCat(null)}>All</button>
-            {CATS.map(([k, l]) => <button key={k} className="chip" aria-pressed={cat === k} onClick={() => setCat(cat === k ? null : k)}>{l}</button>)}
-          </div>
           {!loc && <button className="banner royal" style={{ marginTop: 12 }} onClick={() => go('location')}><MapPin size={20} /><span className="grow">Set your shop location to see the nearest sellers first.</span><ChevronRight size={18} /></button>}
           <div className="gap cards" style={{ marginTop: 12 }}>{list.map(v => <SellerCard key={v.id} v={v} item={itemFor(v)} loc={loc} />)}</div>
 
