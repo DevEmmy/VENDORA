@@ -3,7 +3,7 @@
 //     getUserMedia so the browser shows its permission prompt at the right moment, then start recognition.
 // OUT: speechSynthesis. Phones only allow sound after a tap, so primeSpeech() is called on the first tap.
 import { LANGUAGES } from './i18n.js';
-import { SERVER_URL, API_KEY, YARNGPT_KEY, YARNGPT_VOICE } from './config.js';
+import { TTS_URL, API_KEY, YARNGPT_KEY, YARNGPT_VOICE } from './config.js';
 
 const SR = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
 
@@ -128,8 +128,8 @@ function deviceSpeak(clean, lang) {
 let current = null;
 let yarnDown = 0; // after a failure, use the phone voice for a while instead of waiting each time
 async function yarnUrl(text) {
-  if (SERVER_URL) {
-    const r = await fetch(SERVER_URL.replace(/\/$/, '') + '/api/tts', { method: 'POST', headers: { 'content-type': 'application/json', ...(API_KEY ? { 'x-vendora-key': API_KEY } : {}) }, body: JSON.stringify({ text }) });
+  if (TTS_URL) {
+    const r = await fetch(TTS_URL.replace(/\/$/, '') + '/api/tts', { method: 'POST', headers: { 'content-type': 'application/json', ...(API_KEY ? { 'x-vendora-key': API_KEY } : {}) }, body: JSON.stringify({ text }) });
     if (!r.ok) throw new Error('tts ' + r.status);
     return (await r.json()).url;
   }
@@ -144,7 +144,7 @@ async function yarnUrl(text) {
   }
   return null;
 }
-export const hasNaturalVoice = () => !!(SERVER_URL || YARNGPT_KEY);
+export const hasNaturalVoice = () => !!(TTS_URL || YARNGPT_KEY);
 
 /** Speak a reply: YarnGPT's natural Nigerian voice when available, the phone's own voice otherwise. */
 export async function speak(text, lang = 'en') {
@@ -155,7 +155,7 @@ export async function speak(text, lang = 'en') {
   if (hasNaturalVoice() && Date.now() > yarnDown) {
     try {
       const ctl = new AbortController();
-      const timer = setTimeout(() => ctl.abort(), 6000);
+      const timer = setTimeout(() => ctl.abort(), 12000); // a sleeping free server needs a moment to wake
       const url = await Promise.race([yarnUrl(clean.slice(0, 1200)), new Promise((_, rej) => ctl.signal.addEventListener('abort', () => rej(new Error('slow'))))]);
       clearTimeout(timer);
       if (url) {
