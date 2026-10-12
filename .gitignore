@@ -1,0 +1,13 @@
+node_modules/
+dist/
+dist-single/
+server/data/
+web/test/shots/
+prev/
+build_note.js
+.env
+.env.*
+*.log
+.DS_Store
+app/.dart_tool/
+app/build/
