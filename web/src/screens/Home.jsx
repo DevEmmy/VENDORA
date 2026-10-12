@@ -147,7 +147,7 @@ export default function Home() {
 
         {advice.length > 0 && <>
           <div className="h2">Advice for you <button className="more" onClick={() => go('insights')}>More</button></div>
-          <div className="gap">
+          <div className="gap cards">
             {advice.map((c, i) => (
               <div key={i} className="card row" style={{ alignItems: 'flex-start' }}>
                 <span className="ic kola" style={{ width: 40, height: 40, borderRadius: 12, display: 'grid', placeItems: 'center', flex: 'none' }}><Lightbulb size={20} /></span>

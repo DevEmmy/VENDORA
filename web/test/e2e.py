@@ -122,7 +122,7 @@ def main():
 
         # assistant: send button works, undo works
         page.locator('nav.nav').get_by_role('button', name='Talk to Vendora').click()
-        expect(page.get_by_text('Talk to Vendora')).to_be_visible()
+        expect(page.locator('h1', has_text='Talk to Vendora')).to_be_visible()
         page.wait_for_timeout(800)
         if page.get_by_role('button', name='Stop listening').count(): page.get_by_role('button', name='Stop listening').click()
         page.get_by_label('Message').wait_for(timeout=10000)

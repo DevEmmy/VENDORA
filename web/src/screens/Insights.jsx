@@ -56,7 +56,7 @@ export default function Insights() {
 
         {advice.length > 0 && <>
           <div className="h2">Advice</div>
-          <div className="gap">{advice.map((c, i) => (
+          <div className="gap cards">{advice.map((c, i) => (
             <div key={i} className="card">
               <div className="row" style={{ alignItems: 'flex-start' }}>
                 <span className="ic kola" style={{ width: 40, height: 40, borderRadius: 12, display: 'grid', placeItems: 'center', flex: 'none' }}><Lightbulb size={20} /></span>

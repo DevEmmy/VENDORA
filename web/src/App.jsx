@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { Home as HomeIcon, ShoppingBag, Mic, Store, Wallet as WalletIcon } from 'lucide-react';
+import { Home as HomeIcon, ShoppingBag, Mic, Store, Wallet as WalletIcon, Package, FileText, UserRound } from 'lucide-react';
 import { useStore, Toasts } from './components/ui.jsx';
 import { runDaily, syncNow, hasServer } from './lib/store.js';
 import { primeSpeech, haptic } from './lib/voice.js';
@@ -50,6 +50,13 @@ export default function App() {
     setStack(s => [...s, { page, params, key: Date.now() }]);
     try { history.pushState({ vendora: true }, ''); } catch { /* ignore */ }
   }, []);
+  // Sidebar shortcuts to pages (laptop): open the page fresh instead of stacking it on top of another.
+  const openRoot = useCallback(page => {
+    if (TABS[page]) { go(page); return; }
+    haptic(8);
+    setStack([{ page, params: {}, key: Date.now() }]);
+    try { history.pushState({ vendora: true }, ''); } catch { /* ignore */ }
+  }, [go]);
   // In-app back and the phone's back button do the same thing.
   const back = useCallback(() => { try { history.back(); } catch { setStack(s => s.slice(0, -1)); } }, []);
   useEffect(() => {
@@ -82,7 +89,7 @@ export default function App() {
 
   if (!onboarded) {
     return (
-      <div className="device">
+      <div className="device onboarding">
         {onb === 'welcome' && <Welcome next={() => setOnb('setup')} />}
         {onb === 'setup' && <Setup next={() => setOnb('perms')} back={() => setOnb('welcome')} />}
         {onb === 'perms' && <Onboard next={() => setOnb('account')} back={() => setOnb('setup')} />}
@@ -95,26 +102,28 @@ export default function App() {
   const top = stack[stack.length - 1];
   const Page = top ? PAGES[top.page] : null;
   const Tab = TABS[tab];
-  const navItems = [['home', 'Home', HomeIcon], ['sell', 'Sell', ShoppingBag], ['talk', 'Talk', Mic], ['hub', 'Hub', Store], ['wallet', 'Wallet', WalletIcon]];
+  // Phones: bottom bar with the Talk orb. Laptops: the same items as a left sidebar, plus a few extra shortcuts.
+  const navItems = [['home', 'Home', HomeIcon], ['sell', 'Sell', ShoppingBag], ['talk', 'Talk', Mic], ['hub', 'Hub', Store], ['wallet', 'Wallet', WalletIcon],
+    ['stock', 'My stock', Package, true], ['invoices', 'Invoices', FileText, true], ['profile', 'Profile', UserRound, true]];
+  const current = top ? top.page : tab;
   return (
     <NavCtx.Provider value={{ go, back, tab }}>
-      <div className="device">
-        {Page ? <Page key={top.key} {...top.params} /> : (
-          <>
-            <Tab key={tab + (tabParams._k || '')} {...tabParams} />
-            <nav className="nav" aria-label="Main">
-              {navItems.map(([k, l, Icon]) => k === 'talk' ? (
-                <button key={k} className="talk" onClick={() => go('talk', { autoListen: true })} aria-label="Talk to Vendora">
-                  <span className="orb"><Icon size={28} strokeWidth={2.4} /></span><span>{l}</span>
-                </button>
-              ) : (
-                <button key={k} aria-current={tab === k ? 'page' : undefined} onClick={() => go(k)}>
-                  <Icon size={23} strokeWidth={tab === k ? 2.5 : 2} /><span>{l}</span>
-                </button>
-              ))}
-            </nav>
-          </>
-        )}
+      <div className="device app">
+        <nav className={'nav' + (Page ? ' page-open' : '')} aria-label="Main">
+          <div className="brand"><span className="brand-mark"><Mic size={18} strokeWidth={2.6} /></span>Vendora</div>
+          {navItems.map(([k, l, Icon, deskOnly]) => k === 'talk' ? (
+            <button key={k} className="talk" onClick={() => go('talk', { autoListen: true })} aria-label="Talk to Vendora">
+              <span className="orb"><Icon size={28} strokeWidth={2.4} /></span><span>{l}</span><span className="talk-long">Talk to Vendora</span>
+            </button>
+          ) : (
+            <button key={k} className={deskOnly ? 'desk-only' : undefined} aria-current={current === k ? 'page' : undefined} onClick={() => openRoot(k)}>
+              <Icon size={23} strokeWidth={current === k ? 2.5 : 2} /><span>{l}</span>
+            </button>
+          ))}
+        </nav>
+        <main className="main">
+          {Page ? <Page key={top.key} {...top.params} /> : <Tab key={tab + (tabParams._k || '')} {...tabParams} />}
+        </main>
         {creditAlert && <CreditAlert alert={creditAlert} />}
         <Toasts />
       </div>

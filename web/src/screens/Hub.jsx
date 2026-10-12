@@ -102,7 +102,7 @@ export default function Hub({ focus }) {
               <span style={{ textAlign: 'right' }}><div className="amt">{naira(item.price)}</div><div className="s">per {item.unit}</div></span>
             </button>
           ))}</div>}
-          {!items.length && (list.length ? <div className="gap">{list.map(v => <SellerCard key={v.id} v={v} loc={loc} />)}</div>
+          {!items.length && (list.length ? <div className="gap cards">{list.map(v => <SellerCard key={v.id} v={v} loc={loc} />)}</div>
             : <Empty icon={Store} title={`No seller has "${q.trim()}" yet`} body="Try another word, like rice, milk, oil or a market name." action={<button className="btn plain" onClick={() => setQ('')}>Show all sellers</button>} />)}
         </> : <>
           {owner && (s.advert ? null : (
@@ -129,7 +129,7 @@ export default function Hub({ focus }) {
 
           {needs.length > 0 && !focusP && <>
             <div className="h2">You need these soon</div>
-            <div className="gap">{needs.map(f => {
+            <div className="gap cards">{needs.map(f => {
               const offers = offersFor(f.product);
               return (
                 <div key={f.product.id} className="card">
@@ -150,7 +150,7 @@ export default function Hub({ focus }) {
             {CATS.map(([k, l]) => <button key={k} className="chip" aria-pressed={cat === k} onClick={() => setCat(cat === k ? null : k)}>{l}</button>)}
           </div>
           {!loc && <button className="banner royal" style={{ marginTop: 12 }} onClick={() => go('location')}><MapPin size={20} /><span className="grow">Set your shop location to see the nearest sellers first.</span><ChevronRight size={18} /></button>}
-          <div className="gap" style={{ marginTop: 12 }}>{list.map(v => <SellerCard key={v.id} v={v} item={itemFor(v)} loc={loc} />)}</div>
+          <div className="gap cards" style={{ marginTop: 12 }}>{list.map(v => <SellerCard key={v.id} v={v} item={itemFor(v)} loc={loc} />)}</div>
 
           <div className="card" style={{ marginTop: 16 }}>
             <b>What "verified" means</b>
