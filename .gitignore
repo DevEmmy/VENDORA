@@ -7,6 +7,8 @@ prev/
 build_note.js
 .env
 .env.*
+!.env.example
+server/src/generated/
 *.log
 .DS_Store
 app/.dart_tool/

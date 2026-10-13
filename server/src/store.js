@@ -17,7 +17,7 @@ const EMPTY = () => ({
 function createStore(file) {
   let data = EMPTY();
   if (file && fs.existsSync(file)) {
-    try { data = { ...EMPTY(), ...JSON.parse(fs.readFileSync(file, 'utf8')) }; } catch { /* start fresh */ }
+    data = { ...EMPTY(), ...JSON.parse(fs.readFileSync(file, 'utf8')) };
   }
   let timer = null;
   function save() {

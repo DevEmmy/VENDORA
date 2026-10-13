@@ -14,7 +14,7 @@ function normPhone(p) {
 
 function createWhatsApp(store, opts = {}) {
   const cfg = {
-    verifyToken: opts.verifyToken || process.env.WA_VERIFY_TOKEN || 'vendora-dev',
+    verifyToken: opts.verifyToken || process.env.WA_VERIFY_TOKEN,
     token: opts.token ?? process.env.WA_TOKEN,
     phoneNumberId: opts.phoneNumberId ?? process.env.WA_PHONE_NUMBER_ID,
     batchSize: Number(opts.batchSize || process.env.WA_BATCH_SIZE || 5),
@@ -125,22 +125,6 @@ function createWhatsApp(store, opts = {}) {
   }
 
   const router = express.Router();
-  router.get('/webhook', (req, res) => {
-    if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === cfg.verifyToken) return res.send(req.query['hub.challenge']);
-    res.sendStatus(403);
-  });
-  router.post('/webhook', async (req, res) => {
-    res.sendStatus(200); // acknowledge fast, as Meta requires
-    try { await handleWebhook(req.body); } catch (e) { console.error('whatsapp webhook error', e); }
-  });
-  // Dev/demo: simulate an inbound WhatsApp message without Meta.
-  router.post('/dev/inbound', async (req, res) => {
-    try { res.json(await handleText(normPhone(req.body.phone), String(req.body.text || ''))); }
-    catch (e) { res.status(500).json({ error: e.message }); }
-  });
-  router.get('/dev/outbox', (req, res) => res.json(db().outbox.filter(m => !req.query.phone || m.to === normPhone(req.query.phone)).slice(-50)));
-  router.post('/dev/flush', async (req, res) => { await flushDue(Infinity); res.json({ ok: true }); });
-
   return { router, send, handleText, handleWebhook, flush, flushDue, normPhone };
 }
 

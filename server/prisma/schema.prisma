@@ -1,0 +1,218 @@
+generator client {
+  provider = "prisma-client"
+  output = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas = ["vendora"]
+}
+
+model User {
+  id String @id @default(uuid()) @db.Uuid
+  name String?
+  phone String @unique
+  passwordHash String
+  phoneVerifiedAt DateTime?
+  status String @default("pending")
+  authVersion Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  sessions Session[]
+  memberships Membership[]
+  challenges VerificationChallenge[]
+  recoveryTokens RecoveryToken[]
+  recoveryDestination String?
+  recoveryVerifiedAt DateTime?
+  @@map("users")
+  @@schema("vendora")
+}
+
+model Business {
+  id String @id @default(uuid()) @db.Uuid
+  businessName String?
+  businessType String?
+  city String?
+  phone String @unique
+  createdAt DateTime @default(now())
+  whatsappLinkedAt DateTime?
+  memberships Membership[]
+  resources ResourceOwnership[]
+  snapshot BusinessSnapshot?
+  submissions Submission[]
+  entries ChannelEntry[]
+  @@map("businesses")
+  @@schema("vendora")
+}
+
+model Membership {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  businessId String @db.Uuid
+  role String
+  permissions String[]
+  status String @default("active")
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  @@unique([userId, businessId])
+  @@index([businessId, status])
+  @@map("business_memberships")
+  @@schema("vendora")
+}
+
+model Session {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  csrf String
+  authVersion Int
+  authenticatedAt DateTime @default(now())
+  lastActivityAt DateTime @default(now())
+  idleExpiresAt DateTime
+  expiresAt DateTime
+  revokedAt DateTime?
+  mfaLevel Int @default(0)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokens RefreshToken[]
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+  @@map("sessions")
+  @@schema("vendora")
+}
+
+model RefreshToken {
+  digest String @id
+  sessionId String @db.Uuid
+  parentDigest String? @unique
+  expiresAt DateTime
+  consumedAt DateTime?
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  parent RefreshToken? @relation("rotation", fields: [parentDigest], references: [digest])
+  replacement RefreshToken? @relation("rotation")
+  @@index([sessionId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+  @@schema("vendora")
+}
+
+model VerificationChallenge {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  destination String
+  purpose String
+  digest String
+  attempts Int @default(0)
+  expiresAt DateTime
+  consumedAt DateTime?
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, purpose, createdAt])
+  @@index([expiresAt])
+  @@map("verification_challenges")
+  @@schema("vendora")
+}
+
+model RecoveryToken {
+  digest String @id
+  userId String @db.Uuid
+  purpose String
+  expiresAt DateTime
+  consumedAt DateTime?
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, purpose])
+  @@index([expiresAt])
+  @@map("recovery_tokens")
+  @@schema("vendora")
+}
+
+model PreAuth {
+  digest String @id
+  csrf String
+  expiresAt DateTime
+  @@index([expiresAt])
+  @@map("pre_auth")
+  @@schema("vendora")
+}
+
+model ResourceOwnership {
+  kind String
+  resourceId String
+  businessId String @db.Uuid
+  createdAt DateTime @default(now())
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  @@id([kind, resourceId])
+  @@index([businessId, kind])
+  @@map("resource_ownership")
+  @@schema("vendora")
+}
+
+model AuditEvent {
+  id String @id @default(uuid()) @db.Uuid
+  action String
+  outcome String
+  userId String? @db.Uuid
+  sessionId String? @db.Uuid
+  requestId String
+  createdAt DateTime @default(now())
+  @@index([userId, createdAt])
+  @@map("auth_audit_events")
+  @@schema("vendora")
+}
+
+model WebhookEvent {
+  id String @id
+  provider String
+  payload Json
+  createdAt DateTime @default(now())
+  processedAt DateTime?
+  @@index([processedAt, createdAt])
+  @@map("webhook_events")
+  @@schema("vendora")
+}
+
+model BusinessSnapshot {
+  businessId String @id @db.Uuid
+  state Json
+  updatedAt DateTime @updatedAt
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  @@map("business_snapshots")
+  @@schema("vendora")
+}
+
+model Submission {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @db.Uuid
+  metadata Json
+  file Bytes
+  createdAt DateTime @default(now())
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  @@index([businessId, createdAt])
+  @@map("submissions")
+  @@schema("vendora")
+}
+
+model DeliveryJob {
+  id String @id @default(uuid()) @db.Uuid
+  ciphertext String
+  expiresAt DateTime
+  leaseUntil DateTime?
+  attempts Int @default(0)
+  createdAt DateTime @default(now())
+  @@index([leaseUntil, expiresAt])
+  @@map("delivery_jobs")
+  @@schema("vendora")
+}
+
+model ChannelEntry {
+  seq Int @id @default(autoincrement())
+  businessId String @db.Uuid
+  phone String
+  source String
+  text String?
+  op Json
+  at DateTime @default(now())
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  @@index([businessId, seq])
+  @@map("channel_entries")
+  @@schema("vendora")
+}
