@@ -31,6 +31,7 @@ export const delivery: Delivery = {
 export function identity() {
   const now = new Date();
   const user: User = {
+    name: "Ngozi Okafor",
     id: randomUUID(),
     phone: "2348030000000",
     passwordHash: "unused",

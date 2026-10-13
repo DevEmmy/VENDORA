@@ -5,9 +5,25 @@ import { cookiePolicy } from "../src/config/cookies";
 import { loadConfig } from "../src/config/env";
 import type { PrismaClient } from "../src/generated/prisma/client";
 import { AuthRepository } from "../src/repositories/auth.repository";
+import { schemas } from "../src/schemas/auth.schemas";
 import { Passwords } from "../src/services/password.service";
 import { createTokens } from "../src/services/token.service";
 import { config, delivery, env, identity } from "./helpers";
+
+test("registration validates the shop form and rejects client-issued permissions", () => {
+  const input = { phone: "0803 000 0000", password: "secret", name: " Ngozi Okafor ", businessName: " Ngozi Provisions ", businessType: "Provisions", city: " Alaba Market, Lagos " };
+  const parsed = schemas.register.parse(input);
+  assert.equal(parsed.phone, "2348030000000");
+  assert.equal(parsed.name, "Ngozi Okafor");
+  assert.equal(parsed.businessName, "Ngozi Provisions");
+  assert.equal(parsed.city, "Alaba Market, Lagos");
+  assert.equal(schemas.register.parse({ phone: input.phone, password: input.password, name: input.name, businessName: input.businessName }).businessType, "");
+  for (const override of [
+    { name: undefined }, { name: " " }, { businessName: "a" },
+    { businessType: "Invalid category" }, { city: "x".repeat(201) },
+    { role: "owner" }, { permissions: ["bank:write"] },
+  ]) assert.equal(schemas.register.safeParse({ ...input, ...override }).success, false);
+});
 
 test("configuration rejects wildcards and insecure production settings", () => {
   assert.throws(() =>

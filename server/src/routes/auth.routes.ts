@@ -12,7 +12,7 @@ import type { Passwords } from "../services/password.service";
 import type { Recovery } from "../services/recovery.service";
 import type { Sessions } from "../services/session.service";
 import { digest } from "../services/token.service";
-import { safeUser } from "../types/auth";
+import { safeBusiness, safeUser } from "../types/auth";
 
 function parse<T>(schema: z.ZodType<T>, req: Request): T {
   const result = schema.safeParse(req.body);
@@ -58,8 +58,12 @@ export function createAuthRoutes(deps: {
     asyncRoute(async (req, res) => {
       const b = parse(schemas.register, req);
       await accountLimit("register", b.phone);
-      const user = await auth.register(b.phone, b.password, res.locals.requestId);
-      res.status(201).json({ user: safeUser(user) });
+      const { user, business, membership } = await auth.register(b, res.locals.requestId);
+      res.status(201).json({
+        user: safeUser(user),
+        business: safeBusiness(business),
+        memberships: [{ businessId: membership.businessId, role: membership.role, permissions: membership.permissions }],
+      });
     }),
   );
   router.post(
@@ -105,6 +109,7 @@ export function createAuthRoutes(deps: {
           businessId: m.businessId,
           role: m.role,
           permissions: m.permissions,
+          business: safeBusiness(m.business),
         })),
       });
     }),

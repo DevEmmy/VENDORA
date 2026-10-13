@@ -93,12 +93,13 @@ test(
       const recovery = new Recovery(repo, passwords, sent);
       const phone = "23480" + randomInt(10_000_000, 99_999_999);
       const password = "a unique long password for integration";
+      const shopDetails = { name: "Ngozi Okafor", businessName: "Ngozi Provisions", businessType: "Provisions" as const, city: "Alaba Market, Lagos" };
       await t.test(
         "registration activates accounts immediately and duplicate signup is rejected",
         async () => {
           const outcomes = await Promise.allSettled([
-            auth.register(phone, password, "test-register"),
-            auth.register(phone, password, "test-register"),
+            auth.register({ phone, password, ...shopDetails }, "test-register"),
+            auth.register({ phone, password, ...shopDetails }, "test-register"),
           ]);
           assert.equal(outcomes.filter(o => o.status === "fulfilled").length, 1);
           assert.equal(await db.user.count({ where: { phone } }), 1);
@@ -110,9 +111,27 @@ test(
           assert.equal((await auth.login(phone, password, "test-existing-pending")).user.status, "active");
           const user = await repo.userByPhone(phone);
           assert(user);
-          assert.equal((await repo.memberships(user.id)).length, 0);
+          assert.equal(user.name, shopDetails.name);
+          const memberships = await repo.memberships(user.id);
+          assert.equal(memberships.length, 1);
+          assert.equal(memberships[0]!.role, "owner");
+          assert.equal(memberships[0]!.business.businessName, shopDetails.businessName);
+          assert.equal(memberships[0]!.business.businessType, shopDetails.businessType);
+          assert.equal(memberships[0]!.business.city, shopDetails.city);
+          await repo.ownership(memberships[0]!.businessId, "trader", phone);
+          assert.equal(await db.business.count({ where: { phone } }), 1);
+          const snapshot = await db.businessSnapshot.findUniqueOrThrow({ where: { businessId: memberships[0]!.businessId } });
+          assert.equal((snapshot.state as Record<string, unknown>).name, shopDetails.name);
         },
       );
+      await t.test("existing shop conflicts roll back registration without claiming ownership", async () => {
+        const conflictPhone = "23480" + randomInt(10_000_000, 99_999_999);
+        const existing = await db.business.create({ data: { phone: conflictPhone, businessName: "Existing shop" } });
+        await assert.rejects(auth.register({ phone: conflictPhone, password, ...shopDetails }, "conflict"), { status: 409 });
+        assert.equal(await db.user.count({ where: { phone: conflictPhone } }), 0);
+        assert.equal(await db.membership.count({ where: { businessId: existing.id } }), 0);
+        assert.equal((await db.business.findUniqueOrThrow({ where: { id: existing.id } })).businessName, "Existing shop");
+      });
       await t.test(
         "refresh replay commits revocation and concurrent refresh has one winner",
         async () => {
@@ -209,24 +228,7 @@ test(
         async () => {
           const user = await repo.userByPhone(phone);
           assert(user);
-          const business = await db.business.create({
-            data: {
-              phone,
-              memberships: {
-                create: {
-                  userId: user.id,
-                  role: "owner",
-                  permissions: [
-                    "sales:write",
-                    "submissions:write",
-                    "bank:read",
-                    "bank:write",
-                  ],
-                },
-              },
-              resources: { create: { kind: "trader", resourceId: phone } },
-            },
-          });
+          const business = await db.business.findUniqueOrThrow({ where: { phone } });
           const queue = createDeliveryQueue(repo, config, sent);
           const worker = createWebhookWorker(repo, queue);
           const appConfig = {
@@ -252,7 +254,14 @@ test(
           const base = `http://127.0.0.1:${addr.port}`;
           try {
             const signupPhone = "23480" + randomInt(10_000_000, 99_999_999);
-            const signupBody = JSON.stringify({ phone: signupPhone, password: "secret" });
+            const signupBody = JSON.stringify({ phone: signupPhone, password: "secret", ...shopDetails });
+            const invalidSignup = await fetch(base + "/api/auth/register", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ phone: signupPhone, password: "secret", ...shopDetails, businessName: " " }),
+            });
+            assert.equal(invalidSignup.status, 400);
+            assert.equal(await db.user.count({ where: { phone: signupPhone } }), 0);
             const signup = () => fetch(base + "/api/auth/register", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -264,15 +273,29 @@ test(
             assert.equal((await repo.userByPhone(signupPhone))?.status, "active");
             assert.equal(registeredBody.user.phoneVerified, false);
             assert.equal(registeredBody.user.passwordHash, undefined);
+            assert.equal(registeredBody.user.name, shopDetails.name);
+            assert.equal(registeredBody.business.businessName, shopDetails.businessName);
+            assert.equal(registeredBody.memberships[0].role, "owner");
             assert.equal((await signup()).status, 409);
             const immediateLogin = await fetch(base + "/api/auth/login", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: signupBody,
+              body: JSON.stringify({ phone: signupPhone, password: "secret" }),
             });
             assert.equal(immediateLogin.status, 200);
             assert.equal((await immediateLogin.json()).csrfToken, undefined);
             const signupCookies = immediateLogin.headers.getSetCookie().map(c => c.split(";")[0]).join("; ");
+            const me = await fetch(base + "/api/auth/me", { headers: { cookie: signupCookies } });
+            const meBody = await me.json();
+            assert.equal(me.status, 200);
+            assert.equal(meBody.memberships[0].business.id, registeredBody.business.id);
+            assert.equal(meBody.memberships[0].business.city, shopDetails.city);
+            const initialSync = await fetch(base + "/api/sync", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", cookie: signupCookies },
+              body: "{}",
+            });
+            assert.equal(initialSync.status, 200);
             const refreshed = await fetch(base + "/api/auth/refresh", {
               method: "POST",
               headers: { "Content-Type": "application/json", cookie: signupCookies },

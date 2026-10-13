@@ -16,7 +16,17 @@ export const password = z
     "Password must contain 6-128 characters",
   );
 export const schemas = {
-  register: z.object({ phone, password }).strict(),
+  register: z.object({
+    phone,
+    password,
+    name: z.string().trim().min(2).max(200),
+    businessName: z.string().trim().min(2).max(200),
+    businessType: z.enum([
+      "Foodstuff", "Provisions", "Clothing", "Phones & accessories",
+      "Cosmetics", "Pharmacy", "Other",
+    ]).or(z.literal("")).default(""),
+    city: z.string().trim().max(200).default(""),
+  }).strict(),
   login: z.object({ phone, password: credential }).strict(),
   destination: z.object({ phone }).strict(),
   reset: z
@@ -26,3 +36,4 @@ export const schemas = {
   reauthenticate: z.object({ password: credential }).strict(),
   empty: z.object({}).strict(),
 };
+export type Registration = z.infer<typeof schemas.register>;

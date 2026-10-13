@@ -46,9 +46,11 @@ data but retains the account's local records for its next login. Device owners
 can still inspect local storage: the existing offline shop storage is unencrypted.
 The service worker excludes private backend paths and removes its previous cache.
 
-Signup does not provision a business membership. New users can complete local
-shop onboarding, but backend shop sync waits for an operator-provisioned membership,
-as described in `backend-auth.md`. Banking restrictions enforced by the backend
+Signup now requires `name` and `businessName` along with phone/password, and accepts
+optional `businessType` and `city` from the shop form. It provisions the shop and
+owner membership atomically, as described in `backend-auth.md`. Frontend registration
+calls must include these fields; login still sends only phone/password.
+Banking restrictions enforced by the backend
 remain in effect. Recovery/password-management screens are outside this integration.
 
 Run `npm test` and `npm run build` in `web`. Auth tests cover validation, cookie

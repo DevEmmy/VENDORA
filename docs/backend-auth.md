@@ -2,7 +2,7 @@
 
 The server uses strict TypeScript, Prisma 7/PostgreSQL, Redis throttling,
 Argon2id passwords, RS256 access cookies, rotating opaque refresh cookies,
-database sessions and server-issued memberships. Signup creates an active account
+database sessions and server-issued memberships. Signup creates an active account and shop
 immediately; phone OTP and CSRF token exchange are removed for the hackathon.
 Credentials never appear in response JSON. The frontend signup/login integration
 is described in [frontend-auth.md](frontend-auth.md).
@@ -93,9 +93,30 @@ concurrency budget on deployment hardware.
 
 ## HTTP and ownership
 
-Register with `POST /api/auth/register { "phone": "08012345678", "password": "secret" }`.
-It returns `201 { user }`; an existing phone returns `409`. Then call
-`POST /api/auth/login` with the same body. Login returns `200 { user }` and sets
+Register with `POST /api/auth/register`:
+
+```json
+{
+  "name": "Ngozi Okafor",
+  "phone": "08030000000",
+  "password": "secret",
+  "businessName": "Ngozi Provisions",
+  "businessType": "Provisions",
+  "city": "Alaba Market, Lagos"
+}
+```
+
+Name and shop name are required (2–200 characters after trimming). Category and
+market/area are optional; omitted values default to empty strings. Category accepts
+Foodstuff, Provisions, Clothing, Phones & accessories, Cosmetics, Pharmacy or Other.
+Area accepts up to 200 characters. Phone normalization is unchanged.
+
+It returns `201 { user, business, memberships }`. The user, shop, owner membership,
+trader ownership mapping, initial profile snapshot and audit event are committed
+in one transaction. Owner permissions are issued by the server. An existing account
+or shop phone returns `409`; existing shops are never claimed during signup.
+Then call `POST /api/auth/login` with only `phone` and `password`.
+Login returns `200 { user }` and sets
 HttpOnly access/refresh cookies. Existing pending accounts activate on a successful
 password login. Phone verification status remains false unless previously verified.
 
@@ -119,7 +140,8 @@ revokes the family on reuse; serialize refresh across requests/tabs. Logout-all 
 and does not grant a second factor. Password change requires the current password
 and forces fresh login. Auth/private responses are not cacheable.
 
-`GET /me` returns safe identity and current memberships/permissions. For multiple
+`GET /me` returns safe identity (including name) and current memberships/permissions,
+with shop details under each membership's `business`. For multiple
 memberships supply `X-Business-ID`. Sync accepts only named profile fields; client
 phone/role/account substitutions cannot change ownership. Snapshots, channel
 entries, evidence files and submission ownership persist transactionally in
