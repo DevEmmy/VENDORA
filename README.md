@@ -21,7 +21,7 @@ Everything runs on the phone: the bank is simulated, and data is saved in the br
 
 ## 2. Run the web app for development
 
-Needs Node.js 20+.
+Needs Node.js 22.12+ (22 or 24 LTS).
 
 ```bash
 cd web
@@ -37,32 +37,40 @@ To open it on your phone during development, connect the phone to the same Wi-Fi
 
 ```bash
 cd server
-npm install
-npm test                                   # 24 tests: parser, Wema, loans, WhatsApp, sync, seals, submissions
-VENDORA_API_KEY=choose-a-key npm start     # http://localhost:8080
+npm ci
+# Copy .env.example to .env and configure PostgreSQL, Redis, RSA keys and delivery.
+npm run build
+npm test
+npm run test:integration
+# Apply migrations using a migration credential, as a controlled release step.
+npm run db:deploy
+npm start
 ```
 
 Then build the app pointing at it (traders never see these settings):
 
 ```bash
 cd web
-VITE_SERVER_URL=https://your-server.example VITE_API_KEY=choose-a-key npm run build
+VITE_SERVER_URL=https://your-server.example npm run build
 ```
 
 Without `VITE_SERVER_URL`, the app runs fully on the phone with Wema simulated.
 
+The backend now requires verified users, cookie sessions, CSRF tokens and server-issued business memberships. Browser API keys have been retired. The login UI, credentialed requests and serialized refresh are a separate frontend integration; the existing browser client cannot yet call private endpoints. See [backend authentication setup](docs/backend-auth.md) for secrets, delivery, ownership claims, release gates and tests.
+
 | Setting (environment variable) | What it does |
 |---|---|
 | `PORT` | Server port (default 8080) |
-| `VENDORA_API_KEY` | Key the app must send. Leave empty only for local testing |
-| `DATA_FILE` | Where data is saved (default `server/data/db.json`) |
+| `DATABASE_URL`, `DIRECT_URL` | Separate runtime and migration PostgreSQL connections |
+| `REDIS_URL` | Shared rate-limit store; required |
+| `DATA_FILE` | Optional legacy banking JSON file; financial production mutations stay disabled |
 | `WA_TOKEN`, `WA_PHONE_NUMBER_ID` | Meta WhatsApp Cloud API credentials. Without them, replies are kept in a dev outbox |
 | `WA_VERIFY_TOKEN` | Token Meta uses to verify the webhook (`/whatsapp/webhook`) |
 | `WA_BATCH_SIZE`, `WA_BATCH_WINDOW_MS` | Grouped confirmations: reply once per 5 entries or every 15 min (keeps WhatsApp cost low) |
 | `STT_URL`, `STT_API_KEY`, `STT_MODEL` | Speech-to-text service for WhatsApp voice notes (OpenAI-compatible `/audio/transcriptions`) |
-| `CORS_ORIGINS` | Comma-separated web origins allowed to call the server (default: all) |
+| `CORS_ORIGINS` | Required exact trusted origins; no wildcards |
 
-**Testing WhatsApp without Meta:** `POST /whatsapp/dev/inbound {"phone":"0803...","text":"I sold 2 bags rice"}`, then see replies at `GET /whatsapp/dev/outbox?phone=0803...`. In the app, **WhatsApp** screen sends test messages through the server automatically.
+WhatsApp POST events require the Meta app signature and are durably queued and deduplicated. The owner must explicitly link the verified business phone. Dev routes are disabled by default and cannot be enabled in production.
 
 ## Natural Nigerian voice (YarnGPT)
 
@@ -127,7 +135,8 @@ Permissions (microphone, camera, location, sound) are remembered on the phone af
 ## Tests
 
 ```bash
-cd server && npm test                      # 24 unit/integration tests
+cd server && npm test                      # authentication guards and parser tests
+cd server && npm run test:integration      # isolated PostgreSQL transaction tests
 cd web && npm run build && npx vite preview --port 4173
 python3 web/test/e2e.py                    # full browser walkthrough (needs Playwright), screenshots in web/test/shots
 ```
