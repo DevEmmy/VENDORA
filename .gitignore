@@ -13,3 +13,6 @@ server/src/generated/
 .DS_Store
 app/.dart_tool/
 app/build/
+
+server/test-results/
+server/playwright-report/

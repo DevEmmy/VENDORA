@@ -12,6 +12,11 @@
     "build": "prisma generate && tsc",
     "test": "tsx --test test/*.test.ts test/*.test.js",
     "test:integration": "tsx --test --test-force-exit test/integration/*.test.ts",
+    "test:integration:isolated": "tsx scripts/test-database.ts integration",
+    "test:reproductions": "tsx --test --test-force-exit test/reproductions/*.test.ts",
+    "test:browser": "playwright test",
+    "db:test:migrate": "tsx scripts/test-database.ts migrate",
+    "db:test:reset": "tsx scripts/test-database.ts reset",
     "db:deploy": "prisma migrate deploy",
     "db:dev": "prisma migrate dev"
   },
@@ -38,6 +43,7 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@types/cookie-parser": "1.4.10",
     "@types/cors": "2.8.19",
     "@types/express": "4.17.25",
