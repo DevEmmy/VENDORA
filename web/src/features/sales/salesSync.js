@@ -1,4 +1,4 @@
-import { apiRequest } from "../../lib/api.js";
+import { apiRequest } from "../../lib/api/client.js";
 import {
   getState,
   subscribe,

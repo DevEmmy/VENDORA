@@ -37,7 +37,6 @@ import { useAuthStore } from "./features/auth/authStore.js";
 import { authApi } from "./features/auth/authApi.js";
 import { clearPrivateCaches } from "./lib/privacy.js";
 import { restoreSession } from "./features/auth/authSession.js";
-import { apiRequest } from "./lib/api.js";
 import { startInventorySync } from "./features/inventory/inventorySync.js";
 import { startSalesSync } from "./features/sales/salesSync.js";
 
@@ -125,7 +124,7 @@ function StatusScreen({ title, message, action, actionLabel }) {
   );
 }
 
-function AuthScreen({ onDemo }) {
+function AuthScreen({ onDemo, expired = false }) {
   const [mode, setMode] = useState("login");
   const [form, setForm] = useState({
     name: "",
@@ -256,6 +255,7 @@ function AuthScreen({ onDemo }) {
         }}
       >
         <h1>Vendora</h1>
+        {expired && <p role="status">Your session has ended. Sign in again. Your offline records are saved.</p>}
 
         <p>
           {mode === "login"
@@ -692,9 +692,10 @@ export default function App() {
       </div>
     );
   }
-  if (authStatus === "guest" && !demoMode) {
+  if ((authStatus === "guest" || authStatus === "expired") && !demoMode) {
     return (
       <AuthScreen
+        expired={authStatus === "expired"}
         onDemo={() => {
           activateDemo();
           setOnb("welcome");

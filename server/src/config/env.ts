@@ -12,6 +12,7 @@ const schema = z.object({
   AUTH_KEY_ID: z.string().min(1),
   AUTH_ISSUER: z.url(),
   AUTH_AUDIENCE: z.string().min(1),
+  AUTH_REFRESH_REUSE_GRACE_MS: z.coerce.number().int().min(0).max(30_000).default(10_000),
   CORS_ORIGINS: z.string().min(1),
   COOKIE_SECURE: z.enum(["true", "false"]).default("true"),
   TRUST_PROXY: z.string().default(""),

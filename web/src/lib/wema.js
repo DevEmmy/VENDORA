@@ -3,6 +3,7 @@
 // http: talks to the Vendora server (server/src/wema.js), where Wema's real APIs plug in.
 import { loanOffer, repaymentPlan } from './finance.js';
 import { uid, naira } from './format.js';
+import { apiRequest } from './api/client.js';
 
 const digits = n => Array.from({ length: n }, () => Math.floor(Math.random() * 10)).join('');
 const wait = ms => new Promise(r => setTimeout(r, ms));
@@ -89,16 +90,15 @@ export function createMockWema(getState, setMock, onCredit) {
   };
 }
 
-export function createHttpWema(baseUrl, apiKey, onCredit) {
-  const base = baseUrl.replace(/\/$/, '');
+export function createHttpWema(baseUrl, _apiKey, onCredit) {
   async function call(method, path, body) {
-    let r;
     try {
-      r = await fetch(base + path, { method, headers: { 'content-type': 'application/json', ...(apiKey ? { 'x-vendora-key': apiKey } : {}) }, body: body ? JSON.stringify(body) : undefined });
-    } catch { throw new WemaError('No connection to Wema right now. Try again when you have network.'); }
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new WemaError(j.error || `Request failed (${r.status})`);
-    return j;
+      return await apiRequest(path, { method, body, baseUrl });
+    } catch (error) {
+      const failure = new WemaError(error.message || 'No connection to Wema right now.');
+      failure.status = error.status;
+      throw failure;
+    }
   }
   const scoreBody = s => ({ score: s.score, avgDailySales: s.avgDailySales, activeDays: s.activeDays });
   return {

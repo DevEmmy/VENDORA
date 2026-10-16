@@ -19,6 +19,7 @@ export class Sessions {
   constructor(
     private repo: AuthRepository,
     private tokens: Tokens,
+    private reuseGraceMs = 10_000,
   ) {}
   async create(user: User, requestId: string) {
     const refresh = opaque();
@@ -113,7 +114,7 @@ export class Sessions {
     return { session: token.session, user: token.session.user };
   }
   async rotate(refresh: string, requestId: string) {
-    const next = opaque();
+    const next = this.tokens.successor(refresh);
     // Return replay errors outside the transaction so revocation is committed.
     const result = await this.repo.transaction(async (tx) => {
       const prior = await tx.refreshToken.findUnique({
@@ -127,6 +128,20 @@ export class Sessions {
       });
       const { session } = token;
       if (token.consumedAt) {
+        const now = Date.now();
+        const age = now - token.consumedAt.getTime();
+        if (this.reuseGraceMs > 0 && age >= 0 && age <= this.reuseGraceMs &&
+            active(session, session.user, now) && token.expiresAt.getTime() > now) {
+          const replacement = await tx.refreshToken.findUnique({ where: { parentDigest: token.digest } });
+          // Security trade-off: a stolen immediately previous credential can be
+          // retried for this bounded window. Only an unconsumed direct successor
+          // qualifies; ancestors, expired sessions and later replays still revoke.
+          if (replacement && !replacement.consumedAt && replacement.expiresAt.getTime() > now &&
+              replacement.digest === digest(next)) {
+            await this.repo.audit("refresh", "grace-retry", requestId, session.userId, session.id, tx);
+            return session;
+          }
+        }
         await tx.session.update({
           where: { id: session.id },
           data: { revokedAt: new Date() },

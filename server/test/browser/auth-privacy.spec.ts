@@ -55,19 +55,20 @@ test("M0(b): two tabs refreshing expired access keep the session alive", async (
   expect((await context.request.get(harness.url + "/api/inventory")).status()).toBe(200);
   const second = await context.newPage();
   await second.goto("/__test/browser");
-  // Use the actual two clients currently used by auth and inventory, one per tab.
+  // Both tabs use the common client now used by auth and inventory.
   // The test server's 200ms refresh latency permits a realistic overlap.
   await Promise.all([page.evaluate(async () => {
     const path = "/__test/modules/lib/api/client.js";
     await import(path);
   }), second.evaluate(async () => {
-    const path = "/__test/modules/lib/api.js";
+    const path = "/__test/modules/lib/api/client.js";
     await import(path);
   })]);
   const cookies = await context.cookies();
   const access = cookies.find(cookie => cookie.name.endsWith("-access"));
   expect(access).toBeDefined();
   await context.addCookies([{ ...access!, expires: Math.floor(Date.now() / 1000) - 1 }]);
+  const before = harness.refreshCount();
   const results = await Promise.all([
     page.evaluate(async () => {
       try {
@@ -80,7 +81,7 @@ test("M0(b): two tabs refreshing expired access keep the session alive", async (
     }),
     second.evaluate(async () => {
       try {
-        const path = "/__test/modules/lib/api.js";
+        const path = "/__test/modules/lib/api/client.js";
         const module = await import(path) as {
           apiRequest(path: string): Promise<unknown> };
         await module.apiRequest("/api/inventory");
@@ -95,4 +96,5 @@ test("M0(b): two tabs refreshing expired access keep the session alive", async (
   expect.soft(results).toEqual([200, 200]);
   expect.soft(session.revokedAt, "Refresh races must not revoke a legitimate session").toBeNull();
   expect.soft(directMe.status()).toBe(200);
+  expect.soft(harness.refreshCount() - before, "Web Locks must avoid duplicate refreshes").toBe(1);
 });

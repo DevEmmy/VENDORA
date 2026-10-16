@@ -135,8 +135,18 @@ Explicit local `COOKIE_SECURE=false` uses different development names.
 Access lasts five minutes, idle sessions 30 minutes, and absolute sessions seven
 days. Refresh does not extend idle/absolute expiry. Meaningful private activity
 extends idle expiry up to the absolute deadline. Logout can use the refresh cookie after access expiry, and anonymous logout
-is idempotent. Concurrent refresh has one winner and
-revokes the family on reuse; serialize refresh across requests/tabs. Logout-all requires an active session. Reauthenticate checks the password
+is idempotent. AUTH_REFRESH_REUSE_GRACE_MS defaults to 10000 (maximum 30000;
+0 disables grace). Only the immediately previous credential may be retried
+inside that window, and only while its direct successor remains unconsumed and
+the session remains valid. Such a retry returns the same successor. Older
+ancestors or reuse outside the window revoke the family. The trade-off is a
+short window during which a stolen previous credential is still usable.
+Successors are derived with a domain-separated HMAC key from the existing
+DELIVERY_ENCRYPTION_KEY; replicas must share that secret. Rotating it can reject
+retries of a previous credential from the former key during the grace window;
+unconsumed current credentials continue to rotate normally. The database still
+stores only refresh digests, not plaintext credentials. The browser serializes
+refresh across requests/tabs. Logout-all requires an active session. Reauthenticate checks the password
 and does not grant a second factor. Password change requires the current password
 and forces fresh login. Auth/private responses are not cacheable.
 

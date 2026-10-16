@@ -94,7 +94,7 @@ export function createApp(deps: AppDependencies) {
     }),
   );
   app.use(cookieParser());
-  const sessions = new Sessions(repo, tokens);
+  const sessions = new Sessions(repo, tokens, config.AUTH_REFRESH_REUSE_GRACE_MS);
   const auth = new AuthService(repo, passwords, sessions);
   const recovery = new Recovery(repo, passwords, delivery);
   const { router, guards } = createAuthRoutes({

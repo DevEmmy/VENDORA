@@ -56,7 +56,7 @@ VITE_SERVER_URL=https://your-server.example npm run build
 
 Without `VITE_SERVER_URL`, the app runs fully on the phone with Wema simulated.
 
-The backend now requires verified users, cookie sessions, CSRF tokens and server-issued business memberships. Browser API keys have been retired. The login UI, credentialed requests and serialized refresh are a separate frontend integration; the existing browser client cannot yet call private endpoints. See [backend authentication setup](docs/backend-auth.md) for secrets, delivery, ownership claims, release gates and tests.
+The backend uses phone/password login, HttpOnly cookie sessions and server-issued business memberships. Signup creates an active account and shop without OTP. The frontend includes signup/login/logout, credentialed requests and refresh coordination across tabs. JSON mutations check supplied origins; no CSRF-token exchange is currently required. Browser API keys do not authorize private endpoints. See [backend authentication setup](docs/backend-auth.md) and [frontend authentication](docs/frontend-auth.md) for configuration, recovery requirements and tests.
 
 | Setting (environment variable) | What it does |
 |---|---|

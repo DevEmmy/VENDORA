@@ -30,9 +30,10 @@ export async function startTestServer() {
     const sessions = new Sessions(repo, tokens);
     const auth = new AuthService(repo, passwords, sessions);
     const app = express();
+    let refreshRequests = 0;
     // Test-only wrapper, never imported by a production entrypoint. Delay makes
     // two stale-cookie requests overlap without changing the rotation service.
-    app.post("/api/auth/refresh", (_req, _res, next) => { setTimeout(next, 200); });
+    app.post("/api/auth/refresh", (_req, _res, next) => { refreshRequests++; setTimeout(next, 200); });
     const shell = '<!doctype html><html><head><title>Vendora browser regression</title></head><body>Vendora regression harness</body></html>';
     app.get(["/", "/index.html", "/__test/browser"], (_req, res) => res.type("html").send(shell));
     app.get("/sw.js", (_req, res) => res.sendFile(resolve(serverRoot, "../web/public/sw.js")));
@@ -46,6 +47,7 @@ export async function startTestServer() {
     });
     return {
       url, db, config,
+      refreshCount: () => refreshRequests,
       async account(label: string) {
         const phone = "23480" + randomInt(10_000_000, 99_999_999);
         const password = "milestone regression password";

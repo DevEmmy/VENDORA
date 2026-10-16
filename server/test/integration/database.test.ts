@@ -77,7 +77,9 @@ test(
       await admin.connect();
       const repo = new AuthRepository(db);
       const tokens = await createTokens(config);
-      const sessions = new Sessions(repo, tokens);
+      // Preserve the strict replay policy checks with grace explicitly disabled.
+      // The default grace behavior is tested independently in refresh-grace.test.ts.
+      const sessions = new Sessions(repo, tokens, 0);
       const passwords = new Passwords();
       let recoveryToken = "";
       const sent = {
