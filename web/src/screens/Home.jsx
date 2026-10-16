@@ -1,4 +1,5 @@
 import React from 'react';
+import { useAuthStore } from '../features/auth/authStore.js';
 import { ShoppingBag, PackagePlus, QrCode, ScanLine, BookUser, Landmark, Store, ShieldCheck, ShieldAlert, Mic, Lightbulb, ChevronRight, Truck, FileText, BadgeCheck, FileSpreadsheet, MapPin } from 'lucide-react';
 import { useStore, useOnline, initials } from '../components/ui.jsx';
 import { useNav } from '../App.jsx';
@@ -10,7 +11,7 @@ import { TxnRow } from './Wallet.jsx';
 
 export default function Home() {
   const s = useStore();
-  const { go } = useNav();
+  const { go, openAccountMenu } = useNav();
   const online = useOnline();
   const p = s.profile;
   const live = s.txns.filter(t => !t.reversed);
@@ -27,7 +28,25 @@ export default function Home() {
   const unmatched = s.credits.filter(c => !c.handled);
   const arriving = s.orders.filter(o => o.status !== 'delivered');
   const advice = adviceCards({ ...s, txns: live }).slice(0, 2);
-  const name = staff && !staff.isOwner ? staff.name : (p.name.split(' ')[0] || 'there');
+  const authStatus = useAuthStore(state => state.status);
+  const authUser = useAuthStore(state => state.user);
+
+  const localName = staff && !staff.isOwner
+    ? staff.name
+    : (p.name || '');
+
+  const authenticatedName =
+    authStatus === 'authenticated'
+      ? (authUser?.name?.trim() || '')
+      : '';
+
+  const displayName = authenticatedName || localName.trim();
+  const firstName = displayName.split(/\s+/)[0] || '';
+
+  const name = firstName || 'Welcome back!';
+  const avatarInitial = firstName
+    ? firstName.charAt(0).toUpperCase()
+    : 'V';
 
   const actions = [
     { k: 'sell', label: 'Record a sale', icon: ShoppingBag, tone: 'royal', go: () => go('sell') },
@@ -55,7 +74,7 @@ export default function Home() {
               </button>
             </div>
           </div>
-          <button className="avatar" onClick={() => go('profile')} aria-label="Your profile and settings">{initials(p.name)}</button>
+          <button className="avatar" onClick={() => openAccountMenu()} aria-label="Open account menu">{avatarInitial}</button>
         </div>
       </header>
 

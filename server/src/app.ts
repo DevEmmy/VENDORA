@@ -82,7 +82,7 @@ export function createApp(deps: AppDependencies) {
     cors({
       origin: config.origins,
       credentials: true,
-      methods: ["GET", "POST", "OPTIONS"],
+      methods: ["GET", "POST", "PUT", "OPTIONS"],
       allowedHeaders: ["Content-Type", "X-Business-ID"],
       maxAge: 600,
     }),

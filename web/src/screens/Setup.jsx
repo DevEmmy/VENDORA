@@ -20,7 +20,7 @@ export default function Setup({ next, back }) {
     if (f.businessName.trim().length < 2) return setErr('Enter your shop name.');
     completeSetup({ ...f, name: f.name.trim(), businessName: f.businessName.trim(), phone: phone.startsWith('0') ? phone : '0' + phone });
     if (['Foodstuff', 'Provisions'].includes(f.businessType) && !getState().products.length) {
-      demoProducts().filter(x => STARTERS.includes(x.id)).forEach(({ id, updatedAt, ...x }) => saveProduct({ ...x, qty: 0 }));
+      demoProducts().filter(x => STARTERS.includes(x.id)).forEach(({ id, updatedAt, ...x }) => saveProduct({ ...x, qty: p.demo ? Math.max(5, Number(x.qty) || 0) : 0 }));
     }
     next();
   }

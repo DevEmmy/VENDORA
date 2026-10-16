@@ -62,7 +62,7 @@ export default function Sell() {
                   <div className="ptile-foot">
                     {p.qty <= 0 ? <span className="pill pepper">Out of stock</span> : n === 0 ? <>
                       <span className="small">{qtyUnit(p.qty, p.unit)} in stock</span>
-                      <button className="add-dot" onClick={() => add(p)} aria-hidden="true" tabIndex={-1}><Plus size={18} strokeWidth={2.6} /></button>
+                      <button type="button" className="add-dot" onClick={() => add(p)} aria-label={`Add ${p.name} to sale`}><Plus size={18} strokeWidth={2.6} /></button>
                     </> : (
                       <div className="qty">
                         <button onClick={() => remove(p)} aria-label={`Remove one ${p.name}`}><Minus size={16} strokeWidth={2.6} /></button>

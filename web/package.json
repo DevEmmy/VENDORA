@@ -14,14 +14,19 @@
   },
   "dependencies": {
     "@fontsource/plus-jakarta-sans": "^5.1.0",
+    "@hookform/resolvers": "^5.9.1",
+    "@tanstack/react-query": "^5.104.2",
     "@tesseract.js-data/eng": "^1.0.0",
     "lucide-react": "^0.460.0",
     "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-hook-form": "^7.90.0",
     "tesseract.js": "^5.1.1",
     "tesseract.js-core": "^5.1.1",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "zod": "^4.6.7",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
