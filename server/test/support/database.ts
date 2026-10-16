@@ -40,7 +40,8 @@ export async function migrateTestDatabase(url: string) {
     // Prisma's child-process error message can contain connection details.
     const failure = error as { stdout?: string; stderr?: string };
     throw new Error("Test migrations failed: " +
-      String(failure.stderr || failure.stdout || "unknown error").replaceAll(url, "[test database]"));
+      ([failure.stderr, failure.stdout].filter(Boolean).join("\n") || "unknown error")
+        .replaceAll(url, "[test database]"));
   }
 }
 

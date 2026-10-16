@@ -27,7 +27,7 @@ async function main() {
       } finally { await probe.end(); }
       exitCode = await new Promise<number>((done, reject) => {
         const child = spawn(process.execPath,
-          ["--import", "tsx", "--test", "--test-force-exit", "test/integration/*.test.ts"],
+          ["--import", "tsx", "--test", "--test-concurrency=1", "--test-force-exit", "test/integration/*.test.ts"],
           { cwd: serverRoot, env: { ...process.env, NODE_ENV: "test", TEST_DATABASE_URL: database.url }, stdio: "inherit" });
         child.once("error", reject);
         child.once("exit", code => done(code ?? 1));
