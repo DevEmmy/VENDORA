@@ -42,6 +42,12 @@ model Business {
   snapshot BusinessSnapshot?
   submissions Submission[]
   entries ChannelEntry[]
+  products Product[]
+  customers Customer[]
+  sales Sale[]
+  saleItems SaleItem[]
+  payments Payment[]
+  expenses Expense[]
   @@map("businesses")
   @@schema("vendora")
 }
@@ -214,5 +220,109 @@ model ChannelEntry {
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   @@index([businessId, seq])
   @@map("channel_entries")
+  @@schema("vendora")
+}
+
+model Product {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  name String
+  /// Integer kobo (NGN smallest unit).
+  unitPrice BigInt @map("unit_price")
+  /// Integer kobo (NGN smallest unit).
+  costPrice BigInt? @map("cost_price")
+  stockQty Int @default(0) @map("stock_qty")
+  lowStockAt Int @default(5) @map("low_stock_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  saleItems SaleItem[]
+  @@unique([businessId, id], map: "products_business_id_id_key")
+  @@index([name(ops: raw("public.gin_trgm_ops"))], type: Gin, map: "products_name_trgm_idx")
+  @@index([businessId], map: "products_business_id_idx")
+  @@map("products")
+  @@schema("vendora")
+}
+
+model Customer {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  name String
+  phone String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  sales Sale[]
+  @@unique([businessId, id], map: "customers_business_id_id_key")
+  @@index([name(ops: raw("public.gin_trgm_ops"))], type: Gin, map: "customers_name_trgm_idx")
+  @@index([businessId], map: "customers_business_id_idx")
+  @@map("customers")
+  @@schema("vendora")
+}
+
+model Sale {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  customerId String? @map("customer_id") @db.Uuid
+  /// Integer kobo (NGN smallest unit). Debt = total - amountPaid.
+  total BigInt
+  /// Integer kobo; includes checkout tender and subsequent repayments.
+  amountPaid BigInt @default(0) @map("amount_paid")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  customer Customer? @relation(fields: [businessId, customerId], references: [businessId, id], onDelete: Restrict)
+  items SaleItem[]
+  payments Payment[]
+  @@unique([businessId, id], map: "sales_business_id_id_key")
+  @@index([businessId, createdAt], map: "sales_business_id_created_at_idx")
+  @@index([businessId, customerId], map: "sales_business_id_customer_id_idx")
+  @@index([businessId], map: "sales_business_id_idx")
+  @@map("sales")
+  @@schema("vendora")
+}
+
+model SaleItem {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  saleId String @map("sale_id") @db.Uuid
+  productId String @map("product_id") @db.Uuid
+  quantity Int
+  /// Integer kobo; price snapshot at time of sale.
+  unitPrice BigInt @map("unit_price")
+  sale Sale @relation(fields: [businessId, saleId], references: [businessId, id], onDelete: Cascade)
+  product Product @relation(fields: [businessId, productId], references: [businessId, id], onDelete: Restrict)
+  @@index([saleId], map: "sale_items_sale_id_idx")
+  @@index([businessId, productId], map: "sale_items_business_id_product_id_idx")
+  @@index([businessId], map: "sale_items_business_id_idx")
+  @@map("sale_items")
+  @@schema("vendora")
+}
+
+model Payment {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  saleId String @map("sale_id") @db.Uuid
+  /// Integer kobo; subsequent debt repayment only.
+  amount BigInt
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  sale Sale @relation(fields: [businessId, saleId], references: [businessId, id], onDelete: Cascade)
+  @@index([saleId], map: "payments_sale_id_idx")
+  @@index([businessId], map: "payments_business_id_idx")
+  @@map("payments")
+  @@schema("vendora")
+}
+
+model Expense {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  description String
+  /// Integer kobo (NGN smallest unit).
+  amount BigInt
+  category String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  @@index([businessId, createdAt], map: "expenses_business_id_created_at_idx")
+  @@index([businessId], map: "expenses_business_id_idx")
+  @@map("expenses")
   @@schema("vendora")
 }

@@ -18,7 +18,12 @@
     "db:test:migrate": "tsx scripts/test-database.ts migrate",
     "db:test:reset": "tsx scripts/test-database.ts reset",
     "db:deploy": "prisma migrate deploy",
-    "db:dev": "prisma migrate dev"
+    "db:dev": "prisma migrate dev",
+    "phase1:check": "tsx scripts/phase1-check.ts",
+    "phase1:seed": "tsx scripts/phase1-seed.ts",
+    "phase1:verify": "tsx scripts/phase1-verify.ts",
+    "phase1:down": "tsx scripts/phase1-down.ts",
+    "phase1:constraints": "tsx scripts/phase1-constraints.ts"
   },
   "engines": {
     "node": ">=22.12 <23 || >=24 <25"
