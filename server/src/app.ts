@@ -54,6 +54,12 @@ export function createApp(deps: AppDependencies) {
     next();
   });
   app.use(helmet());
+  app.use(["/api", "/wema", "/whatsapp/dev"], (_req, res, next) => {
+    // Apply before authentication/rate limiting so error responses are private too.
+    res.set("Cache-Control", "no-store");
+    res.vary("Cookie");
+    next();
+  });
   if (!config.whatsappEnabled) {
     app.use("/whatsapp", (_req, res) => res.status(404).json({ error: "WhatsApp is disabled" }));
     app.use("/api/whatsapp", (_req, res) => res.status(404).json({ error: "WhatsApp is disabled" }));

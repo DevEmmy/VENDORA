@@ -35,6 +35,7 @@ import {
 import { primeSpeech, haptic } from "./lib/voice.js";
 import { useAuthStore } from "./features/auth/authStore.js";
 import { authApi } from "./features/auth/authApi.js";
+import { clearPrivateCaches } from "./lib/privacy.js";
 import { restoreSession } from "./features/auth/authSession.js";
 import { apiRequest } from "./lib/api.js";
 import { startInventorySync } from "./features/inventory/inventorySync.js";
@@ -449,6 +450,10 @@ export default function App() {
     restoreSession();
   }, []);
 
+  useEffect(() => {
+    void clearPrivateCaches();
+  }, [user?.id, selectedBusinessId]);
+
   const expectedScope =
     authStatus === "authenticated" && user?.id && selectedBusinessId
       ? `account:${user.id}:${selectedBusinessId}`
@@ -625,6 +630,8 @@ export default function App() {
 
     try {
       await authApi.logout();
+
+      await clearPrivateCaches();
 
       deactivateAccount();
       useAuthStore.getState().setGuest();
