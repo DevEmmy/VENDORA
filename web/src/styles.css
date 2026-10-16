@@ -427,3 +427,291 @@ input[type=range] { width: 100%; accent-color: var(--royal); height: 30px; }
   .hero-deal h3 { font-size: 26px; }
   .cat-row { gap: 20px; }
 }
+
+
+/* VENDORA INPUT CONTRAST AND RESPONSIVENESS */
+
+.search input,
+.field input,
+.field textarea,
+.field select,
+.composer input {
+  color: #101a35;
+  caret-color: #2458e8;
+}
+
+.search input::placeholder,
+.field input::placeholder,
+.field textarea::placeholder,
+.composer input::placeholder {
+  color: #68758e;
+  opacity: 1;
+}
+
+.search input,
+.field input,
+.field textarea,
+.field select,
+.composer input {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.search {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.search input {
+  width: 100%;
+}
+
+@media (max-width: 374px) {
+  .search {
+    gap: 2px;
+  }
+
+  .search input {
+    min-width: 0;
+    font-size: 16px;
+  }
+}
+
+
+/* === Vendora responsive account controls === */
+
+.vendora-account {
+  position: fixed;
+  right: 12px;
+  bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+  z-index: 80;
+  width: min(190px, calc(100vw - 24px));
+}
+
+.nav .vendora-account-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 8px 12px;
+  border: 1px solid #e1e7f2;
+  border-radius: 16px;
+  background: #fff;
+  color: #101b3d;
+  box-shadow: 0 8px 28px rgba(10, 26, 71, .13);
+  cursor: pointer;
+  text-align: left;
+}
+
+.vendora-account-avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #ffbd00;
+  color: #101b3d;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.vendora-account-trigger-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.vendora-account-trigger-text strong {
+  overflow: hidden;
+  color: #101b3d;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vendora-account-trigger-text small {
+  color: #64708e;
+  font-size: 11px;
+}
+
+.vendora-account-chevron {
+  color: #64708e;
+  font-size: 10px;
+}
+
+.vendora-account-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  width: min(260px, calc(100vw - 24px));
+  padding: 12px;
+  border: 1px solid #e1e7f2;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 12px 36px rgba(10, 26, 71, .18);
+}
+
+.vendora-business-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.vendora-business-picker label {
+  color: #4d5b7d;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.vendora-business-picker select {
+  width: 100%;
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid #dce3ef;
+  border-radius: 12px;
+  background: #f7f9fd;
+  color: #101b3d;
+  font: inherit;
+  font-size: 13px;
+}
+
+.nav .vendora-account-signout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: #f0f3fa;
+  color: #17264a;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.vendora-account button:focus-visible,
+.vendora-account select:focus-visible {
+  outline: 3px solid #2458e8;
+  outline-offset: 2px;
+}
+
+@media (max-width: 959px) {
+  .nav {
+    overflow: visible;
+  }
+
+  .vendora-account-menu {
+    max-height: min(50vh, 340px);
+    overflow-y: auto;
+  }
+}
+
+@media (max-width: 380px) {
+  .vendora-account {
+    right: 8px;
+    width: 158px;
+  }
+
+  .vendora-account-trigger-text small {
+    display: none;
+  }
+}
+
+@media (min-width: 960px) {
+  .nav .vendora-account {
+    position: relative;
+    right: auto;
+    bottom: auto;
+    z-index: 10;
+    width: 100%;
+    margin-top: auto;
+    padding-top: 14px;
+  }
+
+  .nav .vendora-account-trigger {
+    box-shadow: none;
+  }
+
+  .nav .vendora-account-menu {
+    right: auto;
+    left: 0;
+    width: max(100%, 230px);
+  }
+}
+
+/* === Vendora mobile account viewport fix === */
+
+@media (max-width: 959px) {
+  .nav .vendora-account {
+    position: fixed !important;
+    top: auto !important;
+    bottom: calc(100px + env(safe-area-inset-bottom, 0px)) !important;
+    right: 12px !important;
+    left: auto !important;
+    width: min(260px, calc(100vw - 24px)) !important;
+    height: auto !important;
+    overflow: visible !important;
+    z-index: 99999 !important;
+  }
+
+  .nav .vendora-account-menu {
+    display: block !important;
+    position: absolute !important;
+    top: auto !important;
+    bottom: 0 !important;
+    right: 0 !important;
+    left: auto !important;
+    width: 100% !important;
+    max-height: min(55vh, 320px) !important;
+    overflow-y: auto !important;
+    box-sizing: border-box !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
+  .nav .vendora-account-trigger {
+    display: none !important;
+  }
+}
+
+/* === Vendora demo exit button === */
+.vendora-demo-exit-wrap {
+  background: #06102e;
+  display: flex;
+  justify-content: center;
+  padding: 0 22px calc(20px + env(safe-area-inset-bottom, 0px));
+}
+
+.vendora-demo-exit {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #dfe7ff;
+  min-height: 46px;
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.15s ease;
+}
+
+.vendora-demo-exit:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.vendora-demo-exit:active {
+  transform: scale(0.98);
+}
+
+.vendora-demo-exit:focus-visible {
+  outline: 3px solid #ffbd00;
+  outline-offset: 3px;
+}

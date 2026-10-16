@@ -90,6 +90,9 @@ export function businessGuard(
     );
     _res.locals.membership = membership;
     const ownerPhone = membership.business.phone;
+    if (path === "/api/inventory" && req.method === "GET") {
+      return next();
+    }
     const raw: unknown = req.body;
     const body = z.record(z.string(), z.unknown()).safeParse(raw ?? {});
     if (!body.success) throw new HttpError(400, "Invalid request");

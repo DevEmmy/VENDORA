@@ -29,22 +29,21 @@ export class AuthRepository {
     if (!found || found.businessId !== businessId)
       throw new HttpError(404, "Not found");
   }
-  audit(
-    action: string,
-    outcome: string,
-    requestId: string,
-    userId?: string,
-    sessionId?: string,
-    tx: Transaction = this.db,
-  ) {
-    return tx.auditEvent.create({
-      data: {
-        action,
-        outcome,
-        requestId,
-        ...(userId ? { userId } : {}),
-        ...(sessionId ? { sessionId } : {}),
-      },
-    });
-  }
-}
+audit(
+  action: string,
+  outcome: string,
+  requestId: string,
+  userId?: string,
+  sessionId?: string,
+  tx: Transaction = this.db,
+) {
+  return tx.auditEvent.createMany({
+    data: {
+      action,
+      outcome,
+      requestId,
+      ...(userId ? { userId } : {}),
+      ...(sessionId ? { sessionId } : {}),
+    },
+  });
+}}

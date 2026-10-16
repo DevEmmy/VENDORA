@@ -4,7 +4,7 @@ import { useStore } from '../components/ui.jsx';
 import { LANGUAGES } from '../lib/i18n.js';
 import { updateProfile, loadDemo } from '../lib/store.js';
 
-export default function Welcome({ next }) {
+export default function Welcome({ next, onSample }) {
   const lang = useStore(s => s.profile.language);
   return (
     <div className="page">
@@ -25,7 +25,7 @@ export default function Welcome({ next }) {
         </div>
         <div style={{ padding: '26px 0 calc(26px + env(safe-area-inset-bottom))' }}>
           <button className="btn kola full" style={{ minHeight: 58, fontSize: 17 }} onClick={next}>Set up my shop</button>
-          <button className="btn full" style={{ marginTop: 10, background: 'rgba(255,255,255,.1)', color: '#fff' }} onClick={loadDemo}>Explore a sample shop</button>
+          <button className="btn full" style={{ marginTop: 10, background: 'rgba(255,255,255,.1)', color: '#fff' }} onClick={onSample}>Explore a sample shop</button>
         </div>
       </div>
     </div>
