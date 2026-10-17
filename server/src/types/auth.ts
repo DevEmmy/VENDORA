@@ -12,6 +12,7 @@ export const safeBusiness = (business: Business) => ({
   businessName: business.businessName,
   businessType: business.businessType,
   city: business.city,
+  inventoryMode: business.inventoryMode,
 });
 declare global {
   namespace Express {

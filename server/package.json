@@ -18,6 +18,7 @@
     "db:test:migrate": "tsx scripts/test-database.ts migrate",
     "db:test:reset": "tsx scripts/test-database.ts reset",
     "db:deploy": "prisma migrate deploy",
+    "inventory:backfill": "tsx scripts/inventory-backfill.ts",
     "db:dev": "prisma migrate dev",
     "phase1:check": "tsx scripts/phase1-check.ts",
     "phase1:seed": "tsx scripts/phase1-seed.ts",

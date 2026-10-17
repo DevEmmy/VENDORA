@@ -7,6 +7,7 @@ import { asyncRoute, HttpError } from "../middleware/error-handler";
 import type { AuthRepository } from "../repositories/auth.repository";
 import { Authorization } from "../services/authorization.service";
 import { submissionSchema, syncSchema } from "./business.routes";
+import { assertSnapshotMode, requireSnapshot } from '../services/snapshot-mode';
 
 const jsonObject = z.record(z.string(), z.unknown());
 const inventoryProductSchema = z
@@ -31,6 +32,13 @@ const inventoryUpdateSchema = z
   .strict();
 export function snapshotRoutes(repo: AuthRepository, store: LegacyStore) {
   const router = Router();
+  router.use(asyncRoute(async (req, _res, next) => {
+    if (['/api/inventory', '/api/sales/sync', '/api/sync'].includes(req.path.replace(/\/+$/, '').toLowerCase())) {
+      const member = await new Authorization(repo).business(req.auth!, 'sales:write', req.get('x-business-id'));
+      assertSnapshotMode(member.business.inventoryMode);
+    }
+    next();
+  }));
   // Read the authenticated business's saved inventory.
   router.get(
     "/api/inventory",
@@ -93,6 +101,7 @@ export function snapshotRoutes(repo: AuthRepository, store: LegacyStore) {
           WHERE id = ${businessId}::uuid
           FOR UPDATE
         `;
+        await requireSnapshot(tx, businessId);
 
         const existing = await tx.businessSnapshot.findUnique({
           where: { businessId },
@@ -193,6 +202,7 @@ export function snapshotRoutes(repo: AuthRepository, store: LegacyStore) {
           WHERE id = ${businessId}::uuid
           FOR UPDATE
         `;
+        await requireSnapshot(tx, businessId);
 
         const existing = await tx.businessSnapshot.findUnique({
           where: { businessId },
@@ -357,6 +367,7 @@ export function snapshotRoutes(repo: AuthRepository, store: LegacyStore) {
       const phone: string = res.locals.membership.business.phone;
       const result = await repo.transaction(async (tx) => {
         await tx.$queryRaw`SELECT id FROM vendora.businesses WHERE id = ${businessId}::uuid FOR UPDATE`;
+        await requireSnapshot(tx, businessId);
         const old = await tx.businessSnapshot.findUnique({
           where: { businessId },
         });

@@ -32,6 +32,8 @@ interface MovementBase {
   metadata?: Prisma.InputJsonObject; referenceId?: string; saleId?: string;
   /** Internal policy, never accepted by generic stock endpoint schemas. */
   allowNegative?: boolean;
+  /** Migration-only fields. Public schemas never accept these options. */
+  allowDeleted?: boolean; suppressNotifications?: boolean; legacyId?: string; at?: Date;
 }
 export type MovementInput = MovementBase & (
   { type: "COUNT_CORRECTION"; countedQty: Prisma.Decimal; observedQty: Prisma.Decimal } |
@@ -42,9 +44,10 @@ export interface MovementResult {
   movement: ReturnType<typeof movementJson>;
 }
 
-async function moveInTransaction(tx: Transaction, actor: InventoryActor, input: MovementInput): Promise<MovementResult> {
+type MovementActor = { businessId: string; userId: string | null };
+async function moveInTransaction(tx: Transaction, actor: MovementActor, input: MovementInput): Promise<MovementResult> {
   await tx.$queryRaw`SELECT id FROM vendora.products WHERE business_id=${actor.businessId}::uuid AND id=${input.productId}::uuid FOR UPDATE`;
-  const allowDeleted = input.type === "SALE_REVERSAL" || input.type === "COUNT_CORRECTION" ||
+  const allowDeleted = input.allowDeleted === true || input.type === "SALE_REVERSAL" || input.type === "COUNT_CORRECTION" ||
     (input.type === "SALE" && input.allowNegative === true);
   const before = await (allowDeleted ? ownedProduct(tx, actor.businessId, input.productId) : activeProduct(tx, actor.businessId, input.productId));
   const delta = input.type === "COUNT_CORRECTION" ? input.countedQty.minus(input.observedQty) : input.quantity;
@@ -63,12 +66,13 @@ async function moveInTransaction(tx: Transaction, actor: InventoryActor, input: 
     businessId: actor.businessId, productId: before.id, type: input.type,
     quantity: delta, quantityBefore: before.stockQty, quantityAfter: after,
     source: input.source, clientId: input.clientId, createdById: actor.userId,
+    legacyId: input.legacyId ?? null, ...(input.at ? { createdAt: input.at, updatedAt: input.at } : {}),
     referenceId: input.referenceId ?? null, saleId: input.saleId ?? null,
     metadata: input.metadata ?? {}, syncSeq: seq, oversold: after.lt(0),
   } });
   await tx.syncChange.create({ data: { businessId: actor.businessId, seq, entity: "movement", entityId: movement.id,
     payload: inventoryJson(movementJson(movement)) } });
-  if (after.lt(0) || (before.stockQty.gt(before.lowStockAt) && after.lte(before.lowStockAt))) {
+  if (!input.suppressNotifications && (after.lt(0) || (before.stockQty.gt(before.lowStockAt) && after.lte(before.lowStockAt)))) {
     const existing = await tx.notification.findFirst({ where: { businessId: actor.businessId, productId: before.id, readAt: null } });
     const alert = after.lt(0) ? { type: "OVERSOLD", message: `Oversold: reconcile stock for ${before.name}` } :
       { type: "LOW_STOCK", message: `Low stock: ${before.name} has ${after.toString()} ${before.unit} left.` };
@@ -80,10 +84,11 @@ async function moveInTransaction(tx: Transaction, actor: InventoryActor, input: 
 
 // Every live quantity change enters here. An existing transaction lets product
 // creation and (in M5) an entire sale share one atomic unit; no nested commit.
-export async function applyStockMovement(db: PrismaClient, actor: InventoryActor, input: MovementInput,
+export async function applyStockMovement(db: PrismaClient, actor: MovementActor, input: MovementInput,
   transaction?: Transaction): Promise<OperationOutcome<MovementResult>> {
   if (transaction) return { result: await moveInTransaction(transaction, actor, input), duplicate: false };
-  return inventoryOperation(db, actor, { clientId: input.clientId, action: `stock.${input.type.toLowerCase()}`,
+  if (!actor.userId) throw new HttpError(403, "A signed-in actor is required");
+  return inventoryOperation(db, { businessId: actor.businessId, userId: actor.userId }, { clientId: input.clientId, action: `stock.${input.type.toLowerCase()}`,
     payload: input, metadata: input.metadata ?? {} }, tx => moveInTransaction(tx, actor, input));
 }
 

@@ -79,6 +79,8 @@ model Business {
   payments Payment[]
   expenses Expense[]
   inventoryMode InventoryMode @default(SNAPSHOT) @map("inventory_mode")
+  inventoryMigratedAt DateTime? @map("inventory_migrated_at") @db.Timestamptz(3)
+  inventoryMigrationReport Json? @map("inventory_migration_report")
   syncSeq BigInt @default(0) @map("sync_seq")
   invoiceSeq BigInt @default(0) @map("invoice_seq")
   stockMovements StockMovement[]

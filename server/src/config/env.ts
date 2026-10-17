@@ -18,6 +18,7 @@ const schema = z.object({
   TRUST_PROXY: z.string().default(""),
   ENABLE_DEV_ROUTES: z.enum(["true", "false"]).default("false"),
   ENABLE_WHATSAPP: z.enum(["true", "false"]).default("false"),
+  INVENTORY_LAZY_BACKFILL: z.enum(['true', 'false']).default('false'),
   DATABASE_TLS: z.enum(["true", "false"]).default("true"),
   DATABASE_CA: z.string().optional(),
   DATABASE_CA_FILE: z.string().optional(),

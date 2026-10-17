@@ -14,12 +14,13 @@ import { createTokens } from "../../src/services/token.service";
 import { delivery, env } from "../helpers";
 import { serverRoot, startTestDatabase, unusedPort } from "./database";
 
-export async function startTestServer() {
+export async function startTestServer(options: { lazyBackfill?: boolean } = {}) {
   const database = await startTestDatabase();
   const port = await unusedPort();
   const url = `http://127.0.0.1:${port}`;
   const config = loadConfig({ ...env, DATABASE_URL: database.url,
-    COOKIE_SECURE: "false", CORS_ORIGINS: url });
+    COOKIE_SECURE: "false", CORS_ORIGINS: url,
+    INVENTORY_LAZY_BACKFILL: options.lazyBackfill ? 'true' : 'false' });
   const db = createDatabase(config);
   let server: Server | undefined;
   try {
