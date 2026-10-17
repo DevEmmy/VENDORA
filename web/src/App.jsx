@@ -52,6 +52,7 @@ import LoanApply from "./screens/LoanApply.jsx";
 import Score from "./screens/Score.jsx";
 import Records from "./screens/Records.jsx";
 import Profile from "./screens/Profile.jsx";
+import Password, { PasswordRecovery } from './screens/Password.jsx';
 import Staff from "./screens/Staff.jsx";
 import Premium from "./screens/Premium.jsx";
 import WhatsApp from "./screens/WhatsApp.jsx";
@@ -86,6 +87,7 @@ const PAGES = {
   score: Score,
   records: Records,
   profile: Profile,
+  password: Password,
   staff: Staff,
   premium: Premium,
   whatsapp: WhatsApp,
@@ -123,6 +125,7 @@ function StatusScreen({ title, message, action, actionLabel }) {
 }
 
 function AuthScreen({ onDemo, expired = false }) {
+  const [recovering, setRecovering] = useState(false);
   const [mode, setMode] = useState("login");
   const [form, setForm] = useState({
     name: "",
@@ -170,8 +173,8 @@ function AuthScreen({ onDemo, expired = false }) {
         return;
       }
 
-      if (passwordLength < 6 || passwordLength > 128) {
-        setError("Password must contain 6 to 128 characters.");
+      if (passwordLength < 8 || passwordLength > 128) {
+        setError("Use 8 to 128 characters and avoid common passwords.");
         return;
       }
 
@@ -231,6 +234,8 @@ function AuthScreen({ onDemo, expired = false }) {
       setBusy(false);
     }
   };
+
+  if (recovering) return <PasswordRecovery onBack={() => setRecovering(false)} />;
 
   const fieldStyle = {
     width: "100%",
@@ -371,6 +376,8 @@ function AuthScreen({ onDemo, expired = false }) {
           </button>
         </p>
 
+        {mode === 'login' && <p><button type="button" onClick={() => setRecovering(true)}>Forgot password?</button></p>}
+        {mode === 'register' && <p>Use 8–128 characters and avoid common passwords.</p>}
         <button type="button" onClick={onDemo}>
           Explore demo
         </button>

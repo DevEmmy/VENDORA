@@ -2,6 +2,10 @@
 import { api } from '../../lib/api/client.js';
 
 export const authApi = {
+  changePassword: (currentPassword, password) => api.request('/api/auth/password/change', {
+    method: 'POST', body: { currentPassword, password }, auth: false,
+  }),
+  forgotPassword: phone => api.request('/api/auth/password/forgot', { method: 'POST', body: { phone }, auth: false }),
   register: (details) =>
     api.request('/api/auth/register', {
       method: 'POST',

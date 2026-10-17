@@ -11,7 +11,7 @@ import { createTokens } from "../src/services/token.service";
 import { config, delivery, env, identity } from "./helpers";
 
 test("registration validates the shop form and rejects client-issued permissions", () => {
-  const input = { phone: "0803 000 0000", password: "secret", name: " Ngozi Okafor ", businessName: " Ngozi Provisions ", businessType: "Provisions", city: " Alaba Market, Lagos " };
+  const input = { phone: "0803 000 0000", password: "market river 2026", name: " Ngozi Okafor ", businessName: " Ngozi Provisions ", businessType: "Provisions", city: " Alaba Market, Lagos " };
   const parsed = schemas.register.parse(input);
   assert.equal(parsed.phone, "2348030000000");
   assert.equal(parsed.name, "Ngozi Okafor");

@@ -33,11 +33,12 @@ const productPayload = product => ({ name: product.name, unit: product.unit || '
   unitPrice: toKobo(product.price), costPrice: toKobo(product.cost || 0), lowStockAt: String(validQty(product.lowAt || 0)) });
 
 /** Called inside the same IndexedDB transaction as the optimistic domain write. */
-export function captureDomainChanges(replica, before, after, { offline = false } = {}) {
+export function captureDomainChanges(replica, before, after, { offline = false, recordedBy = 'Account holder' } = {}) {
   const created = [];
   const previousTransactions = new Map(before.txns.map(record => [record.id, record]));
   const previousProducts = new Map(before.products.map(product => [product.id, product]));
-  const enqueue = (action, payload, extra) => { const operation = newOperation(action, payload, extra); created.push(operation); return operation; };
+  const enqueue = (action, payload, extra) => { const operation = newOperation(action,
+    { ...payload, metadata: { recordedBy, ...payload.metadata } }, extra); created.push(operation); return operation; };
   const transactionDeltas = new Map();
   const addDelta = (productId, delta) => transactionDeltas.set(productId, q((transactionDeltas.get(productId) || 0) + delta));
   for (const record of after.txns) {

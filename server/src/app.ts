@@ -93,6 +93,7 @@ export function createApp(deps: AppDependencies) {
       credentials: true,
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       allowedHeaders: ["Content-Type", "X-Business-ID"],
+      exposedHeaders: ['X-Request-ID', 'Vary'],
       maxAge: 600,
     }),
   );

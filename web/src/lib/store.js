@@ -25,6 +25,7 @@ import { seller as hubSeller } from "./hub.js";
 import { SERVER_URL, API_KEY } from "./config.js";
 import { replicaRepository, replicaScope } from '../features/sync/replicaRepository.js';
 import { captureDomainChanges, domainOf, domainKeys, saleTotalNaira, toKobo } from '../features/sync/domain.js';
+import { hashPin, verifyPin, migrateStaffPins } from './staffPins.js';
 
 const LEGACY_KEY = "vendora:v2";
 const DEMO_KEY = "vendora:demo:v1";
@@ -153,6 +154,7 @@ export async function activateAccount(userId, businessId) {
   }
 
   switchStorage(accountStorageKey(userId, businessId));
+  await protectStaffPins();
   const scope = replicaScope(userId, businessId);
   activeReplicaScope = scope;
   const initial = domainOf(state);
@@ -189,7 +191,8 @@ export async function setDomainState(fn) {
     localChanges = Object.fromEntries(Object.keys(draft).filter(key => !domainKeys.includes(key) && JSON.stringify(draft[key]) !== JSON.stringify(base[key]))
       .map(key => [key, draft[key]]));
     const after = domainOf(draft);
-    captureDomainChanges(current, before, after, { offline: navigator.onLine === false });
+    captureDomainChanges(current, before, after, { offline: navigator.onLine === false,
+      recordedBy: currentStaff(base)?.name || base.profile.name || 'Account holder' });
     current.domain = after;
     current.phase = navigator.onLine === false ? 'offline' : 'pending';
   });
@@ -1499,9 +1502,36 @@ export function recordSubmission(sub) {
 }
 
 // ---------- staff (shop assistant mode) ----------
+export async function protectStaffPins() {
+  const key = activeStorageKey;
+  if (!state.staff.some(person => Object.hasOwn(person, 'pin'))) return;
+  const staff = await migrateStaffPins(state.staff);
+  if (key !== activeStorageKey) throw new Error('Account changed. Try again.');
+  setState(d => { for (const person of d.staff) {
+    const safe = staff.find(value => value.id === person.id);
+    if (safe?.pinHash) person.pinHash = safe.pinHash;
+    delete person.pin;
+  } });
+  flushPendingSave();
+}
+let staffWork = Promise.resolve();
+function updateStaff(action) {
+  const key = activeStorageKey;
+  const work = staffWork.catch(() => {}).then(async () => {
+    if (key !== activeStorageKey) throw new Error('Account changed. Try again.');
+    await protectStaffPins();
+    return action(key);
+  });
+  staffWork = work;
+  return work;
+}
 export function addStaff(name, pin) {
-  setState((d) => {
-    d.staff.push({ id: uid("s"), name, pin, isOwner: false });
+  return updateStaff(async key => {
+    for (const person of state.staff) if (await verifyPin(person.pinHash, pin)) throw new Error('Someone already uses that PIN.');
+    const pinHash = await hashPin(pin);
+    if (key !== activeStorageKey) throw new Error('Account changed. Try again.');
+    setState(d => { d.staff.push({ id: uid('s'), name, pinHash, isOwner: false }); });
+    flushPendingSave();
   });
 }
 export function removeStaff(id) {
@@ -1510,18 +1540,27 @@ export function removeStaff(id) {
   });
 }
 export function setStaffPin(id, pin) {
-  setState((d) => {
-    const x = d.staff.find((y) => y.id === id);
-    if (x) x.pin = pin;
+  return updateStaff(async key => {
+    for (const person of state.staff) if (person.id !== id && await verifyPin(person.pinHash, pin)) throw new Error('Someone already uses that PIN.');
+    const pinHash = await hashPin(pin);
+    if (key !== activeStorageKey) throw new Error('Account changed. Try again.');
+    setState(d => {
+      let person = d.staff.find(value => value.id === id);
+      if (!person && id === 'owner') { person = { id, name: d.profile.name || 'Owner', isOwner: true }; d.staff.unshift(person); d.currentStaffId ||= id; }
+      if (person) { person.pinHash = pinHash; delete person.pin; }
+    });
+    flushPendingSave();
   });
 }
 export function switchStaff(pin) {
-  const s = state.staff.find((x) => x.pin === pin);
-  if (!s) return false;
-  setState((d) => {
-    d.currentStaffId = s.id;
+  return updateStaff(async key => {
+    for (const person of state.staff) if (await verifyPin(person.pinHash, pin)) {
+      if (key !== activeStorageKey) throw new Error('Account changed. Try again.');
+      setState(d => { d.currentStaffId = person.id; });
+      return true;
+    }
+    return false;
   });
-  return true;
 }
 export function staffSummary(now = Date.now()) {
   const from = startOfDay(now);
@@ -1560,7 +1599,7 @@ export function completeSetup(fields) {
       d.staff.push({
         id: "owner",
         name: fields.name || "Owner",
-        pin: "0000",
+        pinHash: null,
         isOwner: true,
       });
       d.currentStaffId = "owner";
@@ -1591,6 +1630,7 @@ export function loadDemo() {
   activateDemo();
   const demo = buildDemo();
   const s = { ...emptyState(), ...demo, ledger: [] };
+  s.staff = s.staff.map(({ pin, ...person }) => ({ ...person, pinHash: null }));
   // Write the demo history into the secured ledger, oldest first
   const ordered = [...demo.txns].sort((a, b) => a.at - b.at);
   for (const t of ordered) {

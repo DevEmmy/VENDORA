@@ -1,5 +1,6 @@
 import argon2 from "argon2";
 import { HttpError } from "../middleware/error-handler";
+import { passwordProblem } from './password-policy';
 
 const options = {
   type: argon2.argon2id,
@@ -24,8 +25,8 @@ export class Passwords {
     }
   }
   async validate(password: string) {
-    if ([...password].length < 6 || [...password].length > 128)
-      throw new HttpError(400, "Password must contain 6–128 characters");
+    const problem = passwordProblem(password);
+    if (problem) throw new HttpError(400, problem);
   }
 
   hash(password: string) {

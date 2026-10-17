@@ -16,6 +16,7 @@ let startupStage: StartupStage = "configuration";
 
 async function main() {
   const config = loadConfig();
+  for (const warning of config.cookieTopologyWarnings) console.warn(`Cookie configuration: ${warning}`);
   startupStage = "database";
   const db = createDatabase(config);
   startupStage = "Redis";

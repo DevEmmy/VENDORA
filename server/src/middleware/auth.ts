@@ -16,9 +16,11 @@ export function createGuards(
 ) {
   const origin: RequestHandler = (req, _res, next) => {
     const source = req.get("origin");
-    // API clients such as Postman do not send an Origin header.
     if (source && !config.origins.includes(source))
       return next(new HttpError(403, "Untrusted origin"));
+    const carriesSession = Boolean(cookie(req, policy.names.access) || cookie(req, policy.names.refresh));
+    if (carriesSession && !source && !['same-origin', 'same-site'].includes(req.get('sec-fetch-site') || ''))
+      return next(new HttpError(403, 'Trusted request origin required'));
     if (!req.is("application/json"))
       return next(new HttpError(415, "JSON required"));
     next();

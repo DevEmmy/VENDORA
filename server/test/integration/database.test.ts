@@ -256,11 +256,12 @@ test(
           const base = `http://127.0.0.1:${addr.port}`;
           try {
             const signupPhone = "23480" + randomInt(10_000_000, 99_999_999);
-            const signupBody = JSON.stringify({ phone: signupPhone, password: "secret", ...shopDetails });
+            const signupPassword = 'market river 2026';
+            const signupBody = JSON.stringify({ phone: signupPhone, password: signupPassword, ...shopDetails });
             const invalidSignup = await fetch(base + "/api/auth/register", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ phone: signupPhone, password: "secret", ...shopDetails, businessName: " " }),
+              body: JSON.stringify({ phone: signupPhone, password: signupPassword, ...shopDetails, businessName: " " }),
             });
             assert.equal(invalidSignup.status, 400);
             assert.equal(await db.user.count({ where: { phone: signupPhone } }), 0);
@@ -282,7 +283,7 @@ test(
             const immediateLogin = await fetch(base + "/api/auth/login", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ phone: signupPhone, password: "secret" }),
+              body: JSON.stringify({ phone: signupPhone, password: signupPassword }),
             });
             assert.equal(immediateLogin.status, 200);
             assert.equal((await immediateLogin.json()).csrfToken, undefined);
@@ -294,13 +295,13 @@ test(
             assert.equal(meBody.memberships[0].business.city, shopDetails.city);
             const initialSync = await fetch(base + "/api/sync", {
               method: "POST",
-              headers: { "Content-Type": "application/json", cookie: signupCookies },
+              headers: { "Content-Type": "application/json", cookie: signupCookies, origin: config.origins[0]! },
               body: "{}",
             });
             assert.equal(initialSync.status, 200);
             const refreshed = await fetch(base + "/api/auth/refresh", {
               method: "POST",
-              headers: { "Content-Type": "application/json", cookie: signupCookies },
+              headers: { "Content-Type": "application/json", cookie: signupCookies, origin: config.origins[0]! },
               body: "{}",
             });
             assert.equal(refreshed.status, 204);
