@@ -82,14 +82,22 @@ export function createSyncEngine({ repository, scope, request, requestBatch, bus
   const run = async () => {
     if (stopped) return;
     if (!isOnline()) { await update(state => { state.phase = 'offline'; }); return; }
-    await update(state => { state.phase = 'syncing'; });
     try {
+      const before = await repository.read(scope);
+      const next = before.outbox.filter(item => item.status === 'pending').sort((a, b) => a.sequence - b.sequence)[0];
+      // Keep the last successful status during routine cursor checks. Announce
+      // active sync for initial restore, due uploads or unconfirmed receipts.
+      if (before.lastSyncAt == null || before.outbox.some(item => item.status === 'applied') || (next && next.nextAttemptAt <= now()))
+        await update(state => { state.phase = 'syncing'; });
       await pull();
+      let uploadAttempted = false;
       for (let count = 0; count < 100 && !stopped; count++) {
         const state = await repository.read(scope);
         const operation = state.outbox.filter(item => item.status === 'pending').sort((a, b) => a.sequence - b.sequence)[0];
         if (!operation || operation.nextAttemptAt > now()) break;
         try {
+          // New work can arrive while the initial background check is in flight.
+          if (state.phase !== 'syncing') await update(current => { current.phase = 'syncing'; });
           const ids = [];
           const prepared = await repository.update(scope, current => {
             const pending = current.outbox.filter(item => item.status === 'pending').sort((a, b) => a.sequence - b.sequence);
@@ -109,6 +117,7 @@ export function createSyncEngine({ repository, scope, request, requestBatch, bus
           const group = ids.map(id => prepared.outbox.find(value => value.id === id));
           if (!group.length) continue;
           let results;
+          uploadAttempted = true;
           if (group.length > 1 && requestBatch) {
             const response = await requestBatch(group, options);
             results = response?.results;
@@ -158,7 +167,9 @@ export function createSyncEngine({ repository, scope, request, requestBatch, bus
         }
       }
       if (stopped) return;
-      await pull();
+      // A second pull confirms uploads (including responses lost in transit).
+      // An idle check has already fetched the current cursor above.
+      if (uploadAttempted) await pull();
       await update(state => {
         state.lastSyncAt = now();
         const pending = state.outbox.some(item => item.status === 'pending' || item.status === 'applied');

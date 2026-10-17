@@ -110,3 +110,63 @@ test('ordered batches acknowledge duplicates and show individual rejections', as
   assert.equal(state.outbox[0].id, 'two');
   assert.equal(state.outbox[0].status, 'rejected');
 });
+
+test('a synced account checks quietly once and still restores another device’s changes', async () => {
+  const repository = new MemoryRepository();
+  await repository.update('u:b', state => { state.phase = 'synced'; state.lastSyncAt = 100; });
+  const phases = [], requests = [];
+  let release, started;
+  const waiting = new Promise(resolve => { release = resolve; });
+  const requested = new Promise(resolve => { started = resolve; });
+  const engine = createSyncEngine({ repository, scope: 'u:b', onChange: state => phases.push(state.phase),
+    request: async path => {
+      requests.push(path); started(); await waiting;
+      return { changes: [{ entity: 'product', data: { id: 'rice', syncSeq: '1', currentQty: '4.500' } }], nextCursor: '1', hasMore: false };
+    },
+  });
+  const syncing = engine.sync();
+  await requested;
+  try { assert(!phases.includes('syncing'), 'A background check must keep the previously synced status.'); }
+  finally { release(); await syncing; }
+  assert.equal(requests.length, 1, 'An idle check must not pull the same cursor twice.');
+  const state = await repository.read('u:b');
+  assert.equal(state.canonical.products.rice.currentQty, '4.500');
+  assert.equal(state.phase, 'synced');
+});
+
+test('polling during upload backoff keeps pending status and does not retry early', async () => {
+  const repository = new MemoryRepository();
+  await appendOperation(repository, 'u:b', op('waiting-sale'));
+  await repository.update('u:b', state => {
+    state.phase = 'pending'; state.lastSyncAt = 100; state.outbox[0].nextAttemptAt = 5000;
+  });
+  const phases = [], requests = [];
+  const engine = createSyncEngine({ repository, scope: 'u:b', now: () => 1000,
+    onChange: state => phases.push(state.phase), request: async path => { requests.push(path); return pull; },
+  });
+  await engine.sync();
+  assert(!phases.includes('syncing'), 'A deferred upload is pending, not actively syncing.');
+  assert.equal(requests.length, 1);
+  assert(requests[0].startsWith('/api/sync/changes'));
+  assert.equal((await repository.read('u:b')).outbox[0].attempts, 0);
+});
+
+test('first restore and actual uploads still announce active sync', async () => {
+  const repository = new MemoryRepository();
+  const phases = [], requests = [];
+  const engine = createSyncEngine({ repository, scope: 'u:b', onChange: state => phases.push(state.phase),
+    request: async (path, options) => {
+      requests.push(path);
+      return path.startsWith('/api/sync/changes') ? pull : { sale: { id: options.body.clientId, syncSeq: '0' } };
+    },
+  });
+  await engine.sync();
+  assert(phases.includes('syncing'));
+  phases.length = 0; requests.length = 0;
+  await appendOperation(repository, 'u:b', op('new-sale'));
+  await engine.sync();
+  assert(phases.includes('syncing'));
+  assert.equal(requests.filter(path => path === '/api/sales').length, 1);
+  assert.equal(requests.filter(path => path.startsWith('/api/sync/changes')).length, 2);
+  assert.equal((await repository.read('u:b')).outbox.length, 0);
+});

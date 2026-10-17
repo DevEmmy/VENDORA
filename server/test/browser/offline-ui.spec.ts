@@ -20,6 +20,25 @@ async function cashSale(page: Page, quantity = '0.5') {
   await page.getByRole('button', { name: 'Next sale', exact: true }).click();
 }
 
+test('a synced production account checks quietly and still receives another device’s stock changes', async ({ page, harness }) => {
+  const owner = await apiActor(harness, 'Quiet background check');
+  await login(page, owner);
+  let release: () => void = () => {};
+  const waiting = new Promise<void>(resolve => { release = resolve; });
+  const changes = /\/api\/sync\/changes\?/;
+  await page.route(changes, async route => { await waiting; await route.continue(); });
+  try {
+    // Let the actual polling timer request updates, keeping the response in
+    // flight long enough to inspect the user-visible status.
+    await page.waitForRequest(request => new URL(request.url()).pathname === '/api/sync/changes', { timeout: 12_000 });
+    await expect(page.getByRole('region', { name: 'Sync status' }).getByRole('button', { name: 'Synced', exact: true })).toBeVisible();
+    expect((await owner.request('/api/products', 'POST', { clientId: randomUUID(), name: 'Beans', unit: 'bag', unitPrice: '100000', openingQty: '5' })).status).toBe(201);
+    release();
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'My stock', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Edit Beans', exact: true })).toContainText('5 bags');
+  } finally { release(); await page.unroute(changes); }
+});
+
 test('M7 production UI queues three offline sales and a fractional restock, then converges exactly', async ({ page, context, harness }) => {
   test.setTimeout(90_000);
   const owner = await apiActor(harness, 'Offline UI');

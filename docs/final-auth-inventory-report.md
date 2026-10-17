@@ -126,3 +126,35 @@ changing runtime behavior.
 
 See inventory-backfill.md, auth-deployment.md, frontend-auth.md and
 backend-auth.md for the exact API/configuration contracts.
+
+## Follow-up: quiet background sync checks
+
+The five-second cursor check previously set Syncing unconditionally and pulled
+twice even when the upload queue was empty. Two regression tests first failed
+for this behavior. Idle checks now preserve the last synced status and pull
+once. Initial restore, due uploads and unconfirmed receipts still show activity;
+the post-upload pull remains, including after uncertain transport responses.
+Uploads waiting for their retry deadline retain Pending status. Other-device
+changes continue to merge through background polling.
+
+Actual follow-up verification:
+
+```text
+web npm test: 32 passed, 0 failed
+server npm test: 47 passed, 0 failed
+server npm run typecheck: exit 0
+server npm run lint: exit 0
+server npm run test:browser: 11 passed (1.6m)
+production frontend build: exit 0 (14.51s; existing chunk advisory)
+git diff --check: exit 0
+```
+
+The new production-browser regression holds a real polling request in flight,
+checks the visible Synced label and then restores a product created by another
+client. Existing offline, independent-device, expiry/re-login, full-story and
+auth/privacy cases pass. Backend database integration results above remain the
+earlier checkpoint; the backend API/schema is unchanged by this frontend fix.
+
+Changed files: web/src/features/sync/outbox.js, web/test/outbox.test.js,
+server/test/browser/offline-ui.spec.ts, docs/frontend-auth.md and this report.
+The pre-existing web/package.json change remains excluded.

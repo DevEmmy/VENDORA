@@ -47,7 +47,9 @@ server IDs live in mapping tables rather than rewriting those facts.
 
 `outbox.js` and `accountSync.js` provide one scoped engine. It restores cursor
 pages, bootstraps legacy mappings, pushes ordered batches up to 25 operations /
-1000 sale lines and pulls again. Each operation has a separate server transaction
+1000 sale lines and pulls again after an upload attempt. Idle checks pull once
+and keep the last synced status; initial restore and due uploads show Syncing.
+Each operation has a separate server transaction
 and receipt; the dedicated sales batch API has all-or-nothing semantics. Known
 rejections stay visible while unrelated physical operations can continue.
 Temporary failures back off exponentially (up to five minutes); reconnect/manual
