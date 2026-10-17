@@ -100,7 +100,10 @@ async function send(path, { method = 'GET', body, signal, businessId, baseUrl: t
     const data = await response.json().catch(() => null);
     const message = typeof data?.message === 'string' ? data.message :
       typeof data?.error === 'string' ? data.error : `Request failed (${response.status}).`;
-    throw new ApiError(message, response.status);
+    const error = new ApiError(message, response.status);
+    error.code = typeof data?.code === 'string' ? data.code : null;
+    error.details = data?.details ?? null;
+    throw error;
   }
   return response.status === 204 ? null : response.json();
 }

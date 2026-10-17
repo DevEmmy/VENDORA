@@ -53,6 +53,7 @@ model User {
   productsCreated Product[] @relation("ProductCreator")
   salesCreated Sale[] @relation("SaleCreator")
   stockMovements StockMovement[] @relation("StockMovementCreator")
+  inventoryOperations InventoryOperation[]
   @@map("users")
   @@schema("vendora")
 }
@@ -80,6 +81,8 @@ model Business {
   syncSeq BigInt @default(0) @map("sync_seq")
   stockMovements StockMovement[]
   syncChanges SyncChange[]
+  inventoryOperations InventoryOperation[]
+  notifications Notification[]
   @@map("businesses")
   @@schema("vendora")
 }
@@ -278,6 +281,7 @@ model Product {
   syncSeq BigInt @default(0) @map("sync_seq")
   saleItems SaleItem[]
   stockMovements StockMovement[]
+  notifications Notification[]
   @@unique([businessId, id], map: "products_business_id_id_key")
   @@unique([businessId, clientId], map: "products_business_id_client_id_key")
   @@unique([businessId, legacyId], map: "products_business_id_legacy_id_key")
@@ -434,5 +438,36 @@ model SyncChange {
   business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
   @@id([businessId, seq])
   @@map("sync_changes")
+  @@schema("vendora")
+}
+
+model InventoryOperation {
+  businessId String @map("business_id") @db.Uuid
+  clientId String @map("client_id") @db.Uuid
+  action String
+  requestHash String @map("request_hash")
+  result Json
+  metadata Json @default("{}")
+  createdById String @map("created_by_id") @db.Uuid
+  createdBy User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  @@id([businessId, clientId])
+  @@map("inventory_operations")
+  @@schema("vendora")
+}
+
+model Notification {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  productId String @map("product_id") @db.Uuid
+  type String
+  message String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  readAt DateTime? @map("read_at") @db.Timestamptz(3)
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  product Product @relation(fields: [businessId, productId], references: [businessId, id], onDelete: Restrict)
+  @@index([businessId, readAt, createdAt])
+  @@map("notifications")
   @@schema("vendora")
 }

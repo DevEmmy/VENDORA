@@ -13,6 +13,7 @@ import type { AuthRepository } from "./repositories/auth.repository";
 import { createAuthRoutes } from "./routes/auth.routes";
 import { businessGuard } from "./routes/business.routes";
 import { snapshotRoutes } from "./routes/snapshot.routes";
+import { inventoryRoutes } from "./routes/inventory.routes";
 import { webhookRoutes } from "./routes/webhook.routes";
 import { AuthService } from "./services/auth.service";
 import { Authorization } from "./services/authorization.service";
@@ -88,7 +89,7 @@ export function createApp(deps: AppDependencies) {
     cors({
       origin: config.origins,
       credentials: true,
-      methods: ["GET", "POST", "PUT", "OPTIONS"],
+      methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       allowedHeaders: ["Content-Type", "X-Business-ID"],
       maxAge: 600,
     }),
@@ -129,6 +130,7 @@ export function createApp(deps: AppDependencies) {
       : next(),
   );
   app.use("/wema", wema.router);
+  app.use(inventoryRoutes(repo));
   app.use(snapshotRoutes(repo, store));
   app.use(legacy.business(store));
   if (config.devRoutes && wa) {
