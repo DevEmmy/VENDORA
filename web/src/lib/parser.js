@@ -36,7 +36,7 @@ const HUNDRED_WORDS = ['hundred', 'ogorun', 'nari', 'dari'];
 
 const UNIT_WORDS = {
   bag: 'bag', bags: 'bag', apo: 'bag', akpa: 'bag', buhu: 'bag', sack: 'bag', sacks: 'bag',
-  carton: 'carton', cartons: 'carton', katon: 'carton', katon: 'carton',
+  carton: 'carton', cartons: 'carton', katon: 'carton',
   crate: 'crate', crates: 'crate', tin: 'tin', tins: 'tin', can: 'tin', cans: 'tin',
   pack: 'pack', packs: 'pack', packet: 'pack', packets: 'pack', piece: 'piece', pieces: 'piece', pcs: 'piece',
   bottle: 'bottle', bottles: 'bottle', gallon: 'gallon', gallons: 'gallon', keg: 'gallon', kegs: 'gallon',

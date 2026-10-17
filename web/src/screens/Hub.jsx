@@ -98,7 +98,7 @@ export default function Hub({ focus }) {
     })).filter(d => !cat || d.item.key === cat)
       .sort((a, b) => (b.saving > 0) - (a.saving > 0) || kmFrom(loc, a.seller) - kmFrom(loc, b.seller) || a.item.price - b.item.price)
       .slice(0, cat ? 12 : 10);
-  }, [s.products, cat, loc]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [s.products, cat, loc]);
   const bestDeal = useMemo(() => {
     let best = null;
     for (const p of s.products) for (const o of offersFor(p)) if (o.saving > 0 && (!best || o.saving * Math.max(1, p.lowAt) > best.saving * Math.max(1, best.product.lowAt))) best = { ...o, product: p };

@@ -55,7 +55,7 @@ export default function Assistant({ autoListen }) {
       else if (autoListen && support !== 'ok') setHelp(VOICE_HELP[support]);
     })();
     return () => { on = false; ctl.current?.stop(); };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // Run the initial listening request once.
 
   async function submit(t, viaVoice = false) {
     const msg = (t ?? text).trim();
