@@ -77,7 +77,7 @@ export function inventoryRoutes(repo: AuthRepository) {
     await requireRelational(repo.db, actor.businessId);
     const query = parse(inventorySchemas.notifications, req.query);
     const notifications = await repo.db.notification.findMany({ where: { businessId: actor.businessId,
-      product: { deletedAt: null }, ...(query.unread === "true" ? { readAt: null } : {}) },
+      OR: [{ product: { deletedAt: null } }, { type: "OVERSOLD" }], ...(query.unread === "true" ? { readAt: null } : {}) },
       orderBy: { createdAt: "desc" }, take: 200 });
     res.json({ notifications });
   }));

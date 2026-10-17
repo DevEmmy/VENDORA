@@ -25,6 +25,7 @@ const fields = {
   unitPrice: kobo, costPrice: kobo.nullable(), lowStockAt: nonnegative,
 };
 const source = z.enum(["app", "tap", "voice", "offline", "whatsapp", "manual"]).default("app");
+export { metadata as operationMetadata, source as operationSource };
 export const inventorySchemas = {
   id: z.uuid(),
   create: z.object({ ...fields, clientId: z.uuid(), unit: fields.unit.default("piece"),

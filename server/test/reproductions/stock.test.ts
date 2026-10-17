@@ -2,36 +2,27 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { startTestServer } from "../support/http";
+import { apiActor } from "../support/api";
 
 test("M0(c): ten concurrent online sales against five units accept only five and decrement stock", { timeout: 180_000 }, async () => {
   const harness = await startTestServer();
   try {
-    const account = await harness.account("Concurrent stock");
-    const productId = randomUUID();
-    await harness.db.product.create({ data: { id: productId, businessId: account.businessId,
-      name: "Rice", unitPrice: 100000n, costPrice: 50000n, stockQty: 5 } });
-    const inventory = [{ id: productId, name: "Rice", aliases: [], unit: "bag",
-      price: 1000, cost: 500, qty: 5, lowAt: 1 }];
-    await harness.db.businessSnapshot.update({ where: { businessId: account.businessId }, data: { state: { inventory } } });
-    const login = await fetch(harness.url + "/api/auth/login", { method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone: account.phone, password: account.password }) });
-    assert.equal(login.status, 200);
-    const cookie = login.headers.getSetCookie().map(value => value.split(";")[0]).join("; ");
-    const results = await Promise.all(Array.from({ length: 10 }, () =>
-      fetch(harness.url + "/api/sales/sync", { method: "POST",
-        headers: { cookie, "Content-Type": "application/json", "X-Business-ID": account.businessId },
-        body: JSON.stringify({ sales: [{ id: randomUUID(), type: "sale",
-          items: [{ productId, qty: 1, price: 1000 }], amount: 1000, paid: 1000,
-          at: Date.now(), fromOffline: false }] }) })));
-    assert(results.every(response => response.status === 200 || response.status === 409),
+    const owner = await apiActor(harness, "Concurrent stock");
+    const created = await owner.request<{ product: { id: string } }>("/api/products", "POST",
+      { clientId: randomUUID(), name: "Rice", unit: "bag", unitPrice: "100000", openingQty: "5" });
+    assert.equal(created.status, 201);
+    const productId = created.data.product.id;
+    // M0 archived the actual legacy /sales/sync failure. This retained regression
+    // now targets the authoritative M5 protocol, with the same five/ten policy.
+    const results = await Promise.all(Array.from({ length: 10 }, () => owner.request("/api/sales", "POST",
+      { clientId: randomUUID(), items: [{ productId, quantity: "1" }], fromOffline: false })));
+    assert(results.every(response => response.status === 201 || response.status === 409),
       "Reproduction must reach sale acceptance, not fail because an endpoint is missing");
-    const response = await fetch(harness.url + "/api/inventory", { headers: { cookie, "X-Business-ID": account.businessId } });
-    const saved = await response.json() as { inventory: { id: string; qty: number }[] };
+    const saved = await owner.request<{ product: { currentQty: string } }>(`/api/products/${productId}`);
     const observed = {
-      accepted: results.filter(result => result.status === 200).length,
+      accepted: results.filter(result => result.status === 201).length,
       rejected: results.filter(result => result.status === 409).length,
-      remaining: saved.inventory.find(product => product.id === productId)?.qty,
+      remaining: Number(saved.data.product.currentQty),
     };
     console.log("M0(c)", JSON.stringify(observed));
     // M5 online policy: reject stock shortages. Offline overselling is a separate path.

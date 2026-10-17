@@ -7,9 +7,15 @@ import type { InventoryActor, OperationOutcome } from "../types/inventory";
 import { inventoryJson, inventoryOperation, nextInventorySeq, requireRelational } from "./inventory-transaction";
 import { movementJson, productJson } from "./inventory-serialization";
 
-export async function activeProduct(tx: Transaction | PrismaClient, businessId: string, id: string) {
-  const product = await tx.product.findFirst({ where: { businessId, id, deletedAt: null } });
+export async function ownedProduct(tx: Transaction | PrismaClient, businessId: string, id: string) {
+  const product = await tx.product.findFirst({ where: { businessId, id } });
   if (!product) throw new HttpError(404, "Not found");
+  return product;
+}
+
+export async function activeProduct(tx: Transaction | PrismaClient, businessId: string, id: string) {
+  const product = await ownedProduct(tx, businessId, id);
+  if (product.deletedAt) throw new HttpError(404, "Not found");
   return product;
 }
 
@@ -24,6 +30,8 @@ export async function publishProduct(tx: Transaction, businessId: string, id: st
 interface MovementBase {
   clientId: string; productId: string; source: string;
   metadata?: Prisma.InputJsonObject; referenceId?: string; saleId?: string;
+  /** Internal policy, never accepted by generic stock endpoint schemas. */
+  allowNegative?: boolean;
 }
 export type MovementInput = MovementBase & (
   { type: "COUNT_CORRECTION"; countedQty: Prisma.Decimal; observedQty: Prisma.Decimal } |
@@ -36,12 +44,17 @@ export interface MovementResult {
 
 async function moveInTransaction(tx: Transaction, actor: InventoryActor, input: MovementInput): Promise<MovementResult> {
   await tx.$queryRaw`SELECT id FROM vendora.products WHERE business_id=${actor.businessId}::uuid AND id=${input.productId}::uuid FOR UPDATE`;
-  const before = await activeProduct(tx, actor.businessId, input.productId);
+  const allowDeleted = input.type === "SALE_REVERSAL" || input.type === "COUNT_CORRECTION" ||
+    (input.type === "SALE" && input.allowNegative === true);
+  const before = await (allowDeleted ? ownedProduct(tx, actor.businessId, input.productId) : activeProduct(tx, actor.businessId, input.productId));
   const delta = input.type === "COUNT_CORRECTION" ? input.countedQty.minus(input.observedQty) : input.quantity;
   const after = before.stockQty.plus(delta);
   if (!delta.isFinite() || delta.decimalPlaces() > 3 || !after.isFinite() || after.abs().gt("999999999.999"))
     throw new HttpError(409, "Quantity exceeds the supported range", "QUANTITY_LIMIT");
-  if (after.lt(0)) throw new HttpError(409, "Insufficient stock", "INSUFFICIENT_STOCK",
+  // Physical offline sales must not disappear. Counts preserve intervening
+  // sales, and positive restocks/reversals may improve an already negative qty.
+  const acceptsNegative = input.allowNegative === true || input.type === "COUNT_CORRECTION" || delta.gte(0);
+  if (after.lt(0) && !acceptsNegative) throw new HttpError(409, "Insufficient stock", "INSUFFICIENT_STOCK",
     { productId: before.id, availableQuantity: before.stockQty.toFixed(3) });
   await tx.product.update({ where: { businessId_id: { businessId: actor.businessId, id: before.id } }, data: { stockQty: after } });
   const product = await publishProduct(tx, actor.businessId, before.id);
@@ -51,14 +64,16 @@ async function moveInTransaction(tx: Transaction, actor: InventoryActor, input: 
     quantity: delta, quantityBefore: before.stockQty, quantityAfter: after,
     source: input.source, clientId: input.clientId, createdById: actor.userId,
     referenceId: input.referenceId ?? null, saleId: input.saleId ?? null,
-    metadata: input.metadata ?? {}, syncSeq: seq,
+    metadata: input.metadata ?? {}, syncSeq: seq, oversold: after.lt(0),
   } });
   await tx.syncChange.create({ data: { businessId: actor.businessId, seq, entity: "movement", entityId: movement.id,
     payload: inventoryJson(movementJson(movement)) } });
-  if (before.stockQty.gt(before.lowStockAt) && after.lte(before.lowStockAt)) {
+  if (after.lt(0) || (before.stockQty.gt(before.lowStockAt) && after.lte(before.lowStockAt))) {
     const existing = await tx.notification.findFirst({ where: { businessId: actor.businessId, productId: before.id, readAt: null } });
-    if (!existing) await tx.notification.create({ data: { businessId: actor.businessId, productId: before.id,
-      type: "LOW_STOCK", message: `Low stock: ${before.name} has ${after.toString()} ${before.unit} left.` } });
+    const alert = after.lt(0) ? { type: "OVERSOLD", message: `Oversold: reconcile stock for ${before.name}` } :
+      { type: "LOW_STOCK", message: `Low stock: ${before.name} has ${after.toString()} ${before.unit} left.` };
+    if (!existing) await tx.notification.create({ data: { businessId: actor.businessId, productId: before.id, ...alert } });
+    else if (after.lt(0)) await tx.notification.update({ where: { id: existing.id }, data: alert });
   }
   return { product: productJson(product), movement: movementJson(movement) };
 }

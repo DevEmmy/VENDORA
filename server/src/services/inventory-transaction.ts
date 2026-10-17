@@ -42,10 +42,10 @@ interface Operation {
 }
 
 export async function inventoryOperation<T extends object>(db: PrismaClient, actor: InventoryActor,
-  operation: Operation, execute: (tx: Transaction) => Promise<T>): Promise<OperationOutcome<T>> {
+  operation: Operation, execute: (tx: Transaction) => Promise<T>, transaction?: Transaction): Promise<OperationOutcome<T>> {
   const requestHash = createHash("sha256").update(canonical({ action: operation.action, payload: operation.payload })).digest("hex");
   try {
-    return await db.$transaction(async tx => {
+    const run = async (tx: Transaction): Promise<OperationOutcome<T>> => {
       // The same first lock on every inventory write serializes commits and
       // sequence allocation. A cursor can never overtake an uncommitted change.
       await tx.$queryRaw`SELECT id FROM vendora.businesses WHERE id=${actor.businessId}::uuid FOR UPDATE`;
@@ -69,7 +69,8 @@ export async function inventoryOperation<T extends object>(db: PrismaClient, act
         clientId: operation.clientId, action: operation.action, requestHash,
         result: inventoryJson(result), metadata: operation.metadata ?? {}, createdById: actor.userId } });
       return { result, duplicate: false };
-    }, { maxWait: 15_000, timeout: 20_000 });
+    };
+    return await (transaction ? run(transaction) : db.$transaction(run, { maxWait: 15_000, timeout: 20_000 }));
   } catch (error: unknown) {
     if (typeof error === "object" && error && "code" in error && error.code === "P2002")
       throw new HttpError(409, "A conflicting record already exists", "IDEMPOTENCY_CONFLICT");

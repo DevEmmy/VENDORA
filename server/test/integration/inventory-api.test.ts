@@ -3,7 +3,8 @@ import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { Prisma } from "../../src/generated/prisma/client";
 import { applyStockMovement } from "../../src/services/inventory.service";
-import { startTestServer, type TestServer } from "../support/http";
+import { startTestServer } from "../support/http";
+import { apiActor as actor } from "../support/api";
 
 interface ProductView {
   id: string; name: string; unitPrice: string; currentQty: string;
@@ -12,25 +13,6 @@ interface ProductView {
 interface Mutation { product: ProductView; duplicate?: boolean }
 interface Change { seq: string; entity: string; entityId: string; data: { deletedAt?: string | null } }
 interface Changes { changes: Change[]; nextCursor: string; hasMore: boolean }
-
-async function actor(harness: TestServer, label: string) {
-  const account = await harness.account(label);
-  await harness.db.business.update({ where: { id: account.businessId }, data: { inventoryMode: "RELATIONAL" } });
-  const response = await fetch(harness.url + "/api/auth/login", { method: "POST",
-    headers: { "Content-Type": "application/json", origin: harness.url },
-    body: JSON.stringify({ phone: account.phone, password: account.password }) });
-  assert.equal(response.status, 200);
-  const cookie = response.headers.getSetCookie().map(value => value.split(";")[0]).join("; ");
-  return {
-    ...account,
-    async request<T>(path: string, method = "GET", body?: unknown, businessId = account.businessId) {
-      const result = await fetch(harness.url + path, { method,
-        headers: { cookie, origin: harness.url, "Content-Type": "application/json", "X-Business-ID": businessId },
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
-      return { status: result.status, data: await result.json() as T };
-    },
-  };
-}
 
 function productInput(openingQty = "5", lowStockAt = "2") {
   return { clientId: randomUUID(), name: "Rice", unit: "bag", aliases: ["iresi"],
