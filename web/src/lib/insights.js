@@ -3,7 +3,7 @@ import { DAY, startOfDay, naira, qtyUnit } from './format.js';
 import { businessScore } from './finance.js';
 import { trustStats } from './ledger.js';
 
-export const sales = txns => txns.filter(t => t.type === 'sale' && !t.reversed);
+export const sales = txns => txns.filter(t => t.type === 'sale' && !t.reversed && !['rejected', 'discarded'].includes(t.syncStatus));
 const inRange = (t, from, to) => t.at >= from && t.at < to;
 
 export function periodRange(period, now = Date.now()) {

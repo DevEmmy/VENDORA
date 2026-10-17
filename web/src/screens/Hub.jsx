@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Store, BadgeCheck, Star, Truck, MapPin, ChevronRight, PackageCheck, Megaphone, ShieldCheck, Clock } from 'lucide-react';
 import { useStore, Top, Empty, StockPill, SearchBar } from '../components/ui.jsx';
 import { useNav } from '../App.jsx';
-import { confirmDelivery, isOwner } from '../lib/store.js';
+import { confirmDelivery, isOwner, toast } from '../lib/store.js';
 import { naira, timeAgo } from '../lib/format.js';
 import { sellers, search, searchItems, offersFor, keyFor } from '../lib/hub.js';
 import { restockForecast } from '../lib/insights.js';
@@ -136,7 +136,9 @@ export default function Hub({ focus }) {
             <div key={o.id} className="card" style={{ marginTop: 12, borderLeft: '4px solid var(--royal)' }}>
               <div className="row"><Truck size={22} className="royal" /><b className="grow">On the way from {o.sellerName}</b><span className="pill royal">{o.pay === 'loan' ? 'Wema loan' : 'Paid'}</span></div>
               <div className="small" style={{ marginTop: 6 }}>{o.lines.map(l => `${l.qty} ${l.unit} ${l.name}`).join(', ')}. Ordered {timeAgo(o.at)}, {naira(o.total)}</div>
-              <button className="btn leaf full" style={{ marginTop: 12 }} onClick={() => confirmDelivery(o.id)}><PackageCheck size={20} />I have received it</button>
+              <button className="btn leaf full" style={{ marginTop: 12 }} onClick={async () => {
+                try { await confirmDelivery(o.id); } catch (error) { toast(error.message, 'bad'); }
+              }}><PackageCheck size={20} />I have received it</button>
             </div>
           ))}
 

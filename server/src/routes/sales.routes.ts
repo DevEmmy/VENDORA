@@ -33,7 +33,7 @@ export function salesRoutes(repo: AuthRepository) {
       res.status(result.duplicate ? 200 : 201).json({ ...result.result, duplicate: result.duplicate });
     } else {
       const result = await createSale(repo.db, actor, parse(salesSchemas.create, body));
-      res.status(result.duplicate ? 200 : 201).json({ ...result.result, duplicate: result.duplicate });
+      res.status(result.duplicate || result.result.legacyMatched ? 200 : 201).json({ ...result.result, duplicate: result.duplicate });
     }
   }));
   router.get("/api/sales", asyncRoute(async (req, res, next) => {

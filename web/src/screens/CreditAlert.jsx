@@ -16,7 +16,8 @@ export default function CreditAlert({ alert }) {
   const guess = guessForAmount(c.amount);
   const first = c.senderName.toLowerCase().split(' ')[0];
   const owing = s.customers.filter(x => x.balance > 0).sort((a, b) => (b.name.toLowerCase().includes(first) - a.name.toLowerCase().includes(first)) || b.balance - a.balance).slice(0, 4);
-  const done = (choice, msg) => { resolveCredit(c.id, choice); haptic([20, 40, 20]); toast(msg, 'good'); };
+  const done = async (choice, msg) => { try { await resolveCredit(c.id, choice); haptic([20, 40, 20]); toast(msg, 'good'); }
+    catch (error) { toast(error.message, 'bad'); } };
   const lines = Object.entries(cart).filter(([, n]) => n > 0).map(([id, qty]) => { const p = s.products.find(x => x.id === id); return { productId: id, qty, price: p.price, name: p.name, unit: p.unit }; });
   const total = lines.reduce((a, l) => a + l.qty * l.price, 0);
 

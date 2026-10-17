@@ -42,6 +42,7 @@ export type MovementInput = MovementBase & (
 export interface MovementResult {
   product: ReturnType<typeof productJson>;
   movement: ReturnType<typeof movementJson>;
+  legacyMatched?: boolean;
 }
 
 type MovementActor = { businessId: string; userId: string | null };
@@ -51,6 +52,14 @@ async function moveInTransaction(tx: Transaction, actor: MovementActor, input: M
     (input.type === "SALE" && input.allowNegative === true);
   const before = await (allowDeleted ? ownedProduct(tx, actor.businessId, input.productId) : activeProduct(tx, actor.businessId, input.productId));
   const delta = input.type === "COUNT_CORRECTION" ? input.countedQty.minus(input.observedQty) : input.quantity;
+  if (input.legacyId) {
+    const previous = await tx.stockMovement.findUnique({ where: { businessId_legacyId: { businessId: actor.businessId, legacyId: input.legacyId } } });
+    if (previous) {
+      if (previous.productId !== input.productId || previous.type !== input.type || !previous.quantity.eq(delta))
+        throw new HttpError(409, 'Legacy movement details differ from the saved record', 'LEGACY_CONFLICT');
+      return { product: productJson(before), movement: movementJson(previous), legacyMatched: true };
+    }
+  }
   const after = before.stockQty.plus(delta);
   if (!delta.isFinite() || delta.decimalPlaces() > 3 || !after.isFinite() || after.abs().gt("999999999.999"))
     throw new HttpError(409, "Quantity exceeds the supported range", "QUANTITY_LIMIT");
@@ -95,10 +104,14 @@ export async function applyStockMovement(db: PrismaClient, actor: MovementActor,
 export function createProduct(db: PrismaClient, actor: InventoryActor, input: CreateProduct) {
   return inventoryOperation(db, actor, { clientId: input.clientId, action: "product.create", payload: input,
     metadata: { ...input.metadata, source: input.source } }, async tx => {
+    if (input.legacyId) {
+      const previous = await tx.product.findUnique({ where: { businessId_legacyId: { businessId: actor.businessId, legacyId: input.legacyId } } });
+      if (previous) return { product: productJson(previous), legacyMatched: true };
+    }
     const product = await tx.product.create({ data: { businessId: actor.businessId,
       name: input.name, unit: input.unit, aliases: input.aliases, unitPrice: input.unitPrice,
       costPrice: input.costPrice, lowStockAt: input.lowStockAt, stockQty: 0,
-      clientId: input.clientId, createdById: actor.userId } });
+      clientId: input.clientId, legacyId: input.legacyId ?? null, createdById: actor.userId } });
     if (input.openingQty.gt(0)) {
       const opened = await applyStockMovement(db, actor, { clientId: randomUUID(), productId: product.id,
         type: "OPENING", quantity: input.openingQty, source: input.source,

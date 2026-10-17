@@ -63,10 +63,21 @@ export function createSale(db: PrismaClient, actor: InventoryActor, input: Creat
     const initialPaid = input.amountPaid ?? (input.payments.length ? 0n : total);
     const amountPaid = initialPaid + input.payments.reduce((sum, payment) => sum + payment.amount, 0n);
     if (amountPaid > total) throw new HttpError(400, "Amount paid exceeds the sale total", "INVALID_PAYMENT");
+    if (input.legacyId) {
+      const previous = await tx.sale.findUnique({ where: { businessId_legacyId: { businessId: actor.businessId, legacyId: input.legacyId } }, include: saleInclude });
+      if (previous) {
+        const signature = (items: { productId: string; quantity: Prisma.Decimal; unitPrice: bigint }[]) =>
+          items.map(item => `${item.productId}:${item.quantity.toString()}:${item.unitPrice}`).sort().join('|');
+        const tender = previous.amountPaid - previous.payments.reduce((sum, payment) => sum + payment.amount, 0n);
+        if (signature(previous.items) !== signature(lines) || previous.total !== total || tender !== initialPaid || input.payments.length)
+          throw new HttpError(409, 'Legacy sale details differ from the saved record', 'LEGACY_CONFLICT');
+        return { sale: saleJson(previous), legacyMatched: true };
+      }
+    }
     const customer = await customerForSale(tx, actor, input);
     const recordedAt = new Date();
     const sale = await tx.sale.create({ data: {
-      clientId: input.clientId, businessId: actor.businessId,
+      clientId: input.clientId, legacyId: input.legacyId ?? null, businessId: actor.businessId,
       invoiceNo: await invoice(tx, actor.businessId), total, amountPaid, customerId: customer?.id ?? null,
       createdById: actor.userId, createdAt: input.at === undefined ? recordedAt : new Date(input.at),
       source: input.source, metadata: { ...input.metadata, fromOffline: input.fromOffline, recordedAt: recordedAt.toISOString() },

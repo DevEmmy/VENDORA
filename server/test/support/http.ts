@@ -14,7 +14,7 @@ import { createTokens } from "../../src/services/token.service";
 import { delivery, env } from "../helpers";
 import { serverRoot, startTestDatabase, unusedPort } from "./database";
 
-export async function startTestServer(options: { lazyBackfill?: boolean } = {}) {
+export async function startTestServer(options: { lazyBackfill?: boolean; serveWeb?: boolean } = {}) {
   const database = await startTestDatabase();
   const port = await unusedPort();
   const url = `http://127.0.0.1:${port}`;
@@ -36,9 +36,13 @@ export async function startTestServer(options: { lazyBackfill?: boolean } = {}) 
     // two stale-cookie requests overlap without changing the rotation service.
     app.post("/api/auth/refresh", (_req, _res, next) => { refreshRequests++; setTimeout(next, 200); });
     const shell = '<!doctype html><html><head><title>Vendora browser regression</title></head><body>Vendora regression harness</body></html>';
-    app.get(["/", "/index.html", "/__test/browser"], (_req, res) => res.type("html").send(shell));
+    app.get('/__test/browser', (_req, res) => res.type('html').send(shell));
+    app.get(['/', '/index.html'], (_req, res) => options.serveWeb ?
+      res.sendFile(resolve(serverRoot, '../web/dist/index.html')) : res.type('html').send(shell));
     app.get("/sw.js", (_req, res) => res.sendFile(resolve(serverRoot, "../web/public/sw.js")));
     app.use("/__test/modules/lib", express.static(resolve(serverRoot, "../web/src/lib")));
+    app.use('/__test/modules/features', express.static(resolve(serverRoot, '../web/src/features')));
+    if (options.serveWeb) app.use(express.static(resolve(serverRoot, '../web/dist')));
     app.use(express.static(resolve(serverRoot, "../web/public")));
     app.use(createApp({ config, repo, tokens, passwords, delivery, limiter: { take: async () => {} } }));
     server = app.listen(port, "127.0.0.1");

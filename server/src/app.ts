@@ -15,6 +15,7 @@ import { businessGuard } from "./routes/business.routes";
 import { snapshotRoutes } from "./routes/snapshot.routes";
 import { inventoryRoutes } from "./routes/inventory.routes";
 import { salesRoutes } from "./routes/sales.routes";
+import { syncRoutes } from './routes/sync.routes';
 import { webhookRoutes } from "./routes/webhook.routes";
 import { AuthService } from "./services/auth.service";
 import { Authorization } from "./services/authorization.service";
@@ -133,6 +134,7 @@ export function createApp(deps: AppDependencies) {
   app.use("/wema", wema.router);
   app.use(inventoryRoutes(repo));
   app.use(salesRoutes(repo));
+  app.use(syncRoutes(repo));
   app.use(snapshotRoutes(repo, store));
   app.use(legacy.business(store));
   if (config.devRoutes && wa) {

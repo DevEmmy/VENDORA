@@ -3,6 +3,7 @@ import { z } from "zod";
 import { asyncRoute, HttpError } from "../middleware/error-handler";
 import type { AuthRepository } from "../repositories/auth.repository";
 import { inventorySchemas } from "../schemas/inventory.schemas";
+import { backfillBusiness } from '../services/inventory-backfill.service';
 import { Authorization } from "../services/authorization.service";
 import { productJson } from "../services/inventory-serialization";
 import { requireRelational } from "../services/inventory-transaction";
@@ -28,7 +29,7 @@ export function inventoryRoutes(repo: AuthRepository) {
   router.post("/api/products", asyncRoute(async (req, res) => {
     const actor = await scope(req.auth!, req.get("x-business-id"));
     const result = await createProduct(repo.db, actor, parse(inventorySchemas.create, req.body));
-    res.status(result.duplicate ? 200 : 201).json(outcome(result));
+    res.status(result.duplicate || result.result.legacyMatched ? 200 : 201).json(outcome(result));
   }));
   router.get("/api/products", asyncRoute(async (req, res) => {
     const actor = await scope(req.auth!, req.get("x-business-id"));
@@ -56,7 +57,9 @@ export function inventoryRoutes(repo: AuthRepository) {
   router.post("/api/products/:id/restock", asyncRoute(async (req, res) => {
     const actor = await scope(req.auth!, req.get("x-business-id"));
     const body = parse(inventorySchemas.restock, req.body);
-    res.json(outcome(await applyStockMovement(repo.db, actor, { ...body,
+    res.json(outcome(await applyStockMovement(repo.db, actor, { clientId: body.clientId,
+      quantity: body.quantity, source: body.source, metadata: body.metadata,
+      ...(body.legacyId ? { legacyId: body.legacyId } : {}), ...(body.at !== undefined ? { at: new Date(body.at) } : {}),
       productId: parse(inventorySchemas.id, req.params.id), type: "RESTOCK" })));
   }));
   router.post("/api/products/:id/count", asyncRoute(async (req, res) => {
@@ -65,12 +68,21 @@ export function inventoryRoutes(repo: AuthRepository) {
     res.json(outcome(await applyStockMovement(repo.db, actor, { clientId: body.clientId,
       productId: parse(inventorySchemas.id, req.params.id), type: "COUNT_CORRECTION",
       countedQty: body.countedQty, observedQty: body.observedQty, source: body.source,
+      ...(body.legacyId ? { legacyId: body.legacyId } : {}), ...(body.at !== undefined ? { at: new Date(body.at) } : {}),
       metadata: { ...body.metadata, reason: body.reason, countedQty: body.countedQty.toFixed(3), observedQty: body.observedQty.toFixed(3) } })));
   }));
   router.get("/api/sync/changes", asyncRoute(async (req, res) => {
     const actor = await scope(req.auth!, req.get("x-business-id"));
     const query = parse(inventorySchemas.changes, req.query);
     res.json(await inventoryChanges(repo.db, actor, query.since, query.limit));
+  }));
+  router.post('/api/inventory/migrate', asyncRoute(async (req, res) => {
+    const actor = await scope(req.auth!, req.get('x-business-id'));
+    const body = parse(z.object({ dryRun: z.boolean().default(false) }).strict(), req.body);
+    const report = await backfillBusiness(repo.db, actor.businessId, { actorId: actor.userId, dryRun: body.dryRun });
+    if (report.status === 'blocked') throw new HttpError(409, 'This inventory needs migration review', 'MIGRATION_REVIEW_REQUIRED',
+      { issues: report.issues, businessId: actor.businessId });
+    res.json({ report });
   }));
   router.get("/api/notifications", asyncRoute(async (req, res) => {
     const actor = await scope(req.auth!, req.get("x-business-id"));

@@ -26,9 +26,12 @@ const fields = {
 };
 const source = z.enum(["app", "tap", "voice", "offline", "whatsapp", "manual"]).default("app");
 export { metadata as operationMetadata, source as operationSource };
+export const legacyId = z.string().min(1).max(300).optional();
+export const recordedAt = z.number().int().nonnegative().max(8_640_000_000_000_000)
+  .refine(value => value <= Date.now() + 5 * 60_000, 'Recorded time cannot be in the future').optional();
 export const inventorySchemas = {
   id: z.uuid(),
-  create: z.object({ ...fields, clientId: z.uuid(), unit: fields.unit.default("piece"),
+  create: z.object({ ...fields, clientId: z.uuid(), legacyId, unit: fields.unit.default("piece"),
     aliases: fields.aliases.default([]), costPrice: fields.costPrice.default(null),
     lowStockAt: fields.lowStockAt.default(new Prisma.Decimal(5)),
     openingQty: nonnegative.default(new Prisma.Decimal(0)), metadata, source }).strict(),
@@ -37,8 +40,8 @@ export const inventorySchemas = {
     costPrice: fields.costPrice.optional(), lowStockAt: fields.lowStockAt.optional(), metadata, source }).strict()
     .refine(value => Object.keys(value).some(key => !["clientId", "metadata", "source"].includes(key))),
   remove: z.object({ clientId: z.uuid(), metadata, source }).strict(),
-  restock: z.object({ clientId: z.uuid(), quantity: positive, metadata, source }).strict(),
-  count: z.object({ clientId: z.uuid(), countedQty: nonnegative, observedQty: quantity,
+  restock: z.object({ clientId: z.uuid(), legacyId, at: recordedAt, quantity: positive, metadata, source }).strict(),
+  count: z.object({ clientId: z.uuid(), legacyId, at: recordedAt, countedQty: nonnegative, observedQty: quantity,
     reason: z.string().max(1000).default("Physical count"), metadata, source }).strict(),
   list: z.object({ q: z.string().max(200).optional(), includeDeleted: z.enum(["true", "false"]).default("false"),
     limit: z.coerce.number().int().min(1).max(5000).default(5000) }).strict(),

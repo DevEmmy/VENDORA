@@ -23,12 +23,10 @@ import {
   loadDemo,
   startCustomDemo,
   runDaily,
-  syncNow,
-  hasServer,
   activateAccount,
   activateDemo,
   deactivateAccount,
-  hydrateAccountInventory,
+  updateProfile,
 } from "./lib/store.js";
 
 
@@ -37,8 +35,8 @@ import { useAuthStore } from "./features/auth/authStore.js";
 import { authApi } from "./features/auth/authApi.js";
 import { clearPrivateCaches } from "./lib/privacy.js";
 import { restoreSession } from "./features/auth/authSession.js";
-import { startInventorySync } from "./features/inventory/inventorySync.js";
-import { startSalesSync } from "./features/sales/salesSync.js";
+import { startAccountSync, getActiveSync } from './features/sync/accountSync.js';
+import SyncStatus from './features/sync/SyncStatus.jsx';
 
 import Welcome from "./screens/Welcome.jsx";
 import Setup from "./screens/Setup.jsx";
@@ -395,6 +393,8 @@ export default function App() {
     ) ?? null;
   const [loggingOut, setLoggingOut] = useState(false);
   const [authError, setAuthError] = useState("");
+  const [scopeError, setScopeError] = useState('');
+  const [pendingLogout, setPendingLogout] = useState(false);
   const [tab, setTab] = useState("home");
   const [tabParams, setTabParams] = useState({});
   const [stack, setStack] = useState([]);
@@ -462,6 +462,8 @@ export default function App() {
         : null;
   useEffect(() => {
     setActiveScope(null);
+    setScopeError('');
+    let cancelled = false;
 
     if (authStatus === "authenticated" && user?.id && selectedBusinessId) {
       const isMember = memberships.some(
@@ -470,9 +472,14 @@ export default function App() {
 
       if (!isMember) return;
 
-      activateAccount(user.id, selectedBusinessId);
-      setActiveScope(`account:${user.id}:${selectedBusinessId}`);
-      return;
+      void activateAccount(user.id, selectedBusinessId).then(() => {
+        if (cancelled) return;
+        const business = memberships.find(item => item.businessId === selectedBusinessId)?.business;
+        updateProfile({ name: user.name || '', phone: user.phone || '', businessName: business?.businessName || '',
+          businessType: business?.businessType || '', city: business?.city || '', onboarded: true, demo: false });
+        setActiveScope(`account:${user.id}:${selectedBusinessId}`);
+      }).catch(error => { if (!cancelled) setScopeError(error.message); });
+      return () => { cancelled = true; };
     }
 
     deactivateAccount();
@@ -493,20 +500,12 @@ export default function App() {
       return;
     }
 
-    const stopInventorySync = startInventorySync({
+    const stopSync = startAccountSync({
       userId: user.id,
       businessId: selectedBusinessId,
     });
 
-    const stopSalesSync = startSalesSync({
-      userId: user.id,
-      businessId: selectedBusinessId,
-    });
-
-    return () => {
-      stopSalesSync();
-      stopInventorySync();
-    };
+    return stopSync;
   }, [authStatus, user?.id, selectedBusinessId, activeScope]);
 
 
@@ -600,35 +599,22 @@ export default function App() {
     return () => clearInterval(timer);
   }, [ready, onboarded, activeScope]);
 
-  useEffect(() => {
-    if (!ready || !onboarded || !hasServer()) return;
-
-    syncNow();
-
-    const timer = setInterval(syncNow, 20000);
-
-    const visibilityChanged = () => {
-      if (document.visibilityState === "visible") {
-        syncNow();
-      }
-    };
-
-    document.addEventListener("visibilitychange", visibilityChanged);
-
-    return () => {
-      clearInterval(timer);
-
-      document.removeEventListener("visibilitychange", visibilityChanged);
-    };
-  }, [ready, onboarded, activeScope]);
-
-  const logout = async () => {
+  const logout = async (discardConfirmed = false) => {
     if (loggingOut) return;
 
     setLoggingOut(true);
     setAuthError("");
 
     try {
+      const sync = getActiveSync();
+      if (sync) {
+        if (discardConfirmed === true) await sync.discardForLogout();
+        else {
+          await sync.sync();
+          if (await sync.pending()) { setPendingLogout(true); return; }
+        }
+      }
+      setPendingLogout(false);
       await authApi.logout();
 
       await clearPrivateCaches();
@@ -721,7 +707,9 @@ export default function App() {
     return (
       <StatusScreen
         title="Loading business"
-        message="Preparing your business workspace..."
+        message={scopeError || 'Preparing your business workspace...'}
+        action={scopeError ? () => location.reload() : undefined}
+        actionLabel="Try again"
       />
     );
   }
@@ -939,6 +927,7 @@ export default function App() {
         </nav>
 
         <main className="main">
+          {authStatus === 'authenticated' && <SyncStatus />}
           {authError && <p role="alert">{authError}</p>}
 
           {Page ? (
@@ -949,6 +938,14 @@ export default function App() {
         </main>
 
         {creditAlert && <CreditAlert alert={creditAlert} />}
+        {pendingLogout && <div className="scrim"><section className="sheet" role="dialog" aria-modal="true" aria-label="Unsynced records">
+          <h2>Records still need to sync</h2>
+          <p>Keep this account open to synchronize them, or explicitly discard its pending uploads before signing out.</p>
+          {authError && <p role="alert">{authError}</p>}
+          <button className="btn soft full" onClick={() => setPendingLogout(false)}>Keep working</button>
+          <button className="btn primary full" disabled={loggingOut} onClick={() => logout()}>Sync and sign out</button>
+          <button className="btn danger full" disabled={loggingOut} onClick={() => logout(true)}>Discard pending uploads and sign out</button>
+        </section></div>}
 
         <Toasts />
       </div>

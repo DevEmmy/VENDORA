@@ -1,12 +1,11 @@
 import { z } from "zod";
-import { kobo, operationMetadata, operationSource, quantity } from "./inventory.schemas";
+import { kobo, legacyId, operationMetadata, operationSource, quantity, recordedAt } from "./inventory.schemas";
 import { validCalendarDay } from "../services/lagos-time";
 
-const at = z.number().int().nonnegative().max(8_640_000_000_000_000)
-  .refine(value => value <= Date.now() + 5 * 60_000, "Recorded time cannot be in the future").optional();
+const at = recordedAt;
 const repayment = z.object({ clientId: z.uuid(), amount: kobo.refine(value => value > 0n), at }).strict();
 const create = z.object({
-  clientId: z.uuid(), items: z.array(z.object({ productId: z.uuid(),
+  clientId: z.uuid(), legacyId, items: z.array(z.object({ productId: z.uuid(),
     quantity: quantity.refine(value => value.gt(0)), unitPrice: kobo.optional() }).strict()).min(1).max(500),
   amountPaid: kobo.optional(),
   customerId: z.uuid().optional(), customer: z.object({ clientId: z.uuid().optional(),

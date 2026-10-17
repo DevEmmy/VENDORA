@@ -10,12 +10,15 @@ const TYPE_ICON = { sale: ShoppingBag, restock: PackagePlus, debtPayment: HandCo
 const TYPE_TONE = { sale: 'royal', restock: 'leaf', debtPayment: 'kola', income: 'leaf', loanRepayment: 'ink' };
 
 function txnTitle(t) {
+  if (t.type === 'saleReversal') return 'Sale reversal';
   if (t.type === 'sale' || t.type === 'restock') return t.items.map(i => `${qtyUnit(i.qty, i.unit)} ${i.name}`).join(', ') || 'Sale';
   if (t.type === 'debtPayment') return `${t.customerName} paid debt`;
   if (t.type === 'loanRepayment') return 'Wema loan repayment';
   return t.note || 'Money received';
 }
 function payLabel(t) {
+  if (t.syncStatus === 'rejected' || t.syncStatus === 'discarded') return 'Not posted · review Sync status';
+  if (t.syncStatus === 'pending') return 'Saved on this device · pending sync';
   if (t.type === 'restock') return t.source === 'supplier' ? 'Delivered by verified seller' : 'Stock added';
   if (t.payStatus === 'verified') return 'Confirmed by Wema';
   if (t.payStatus === 'pending') return 'Waiting for transfer';
@@ -29,7 +32,7 @@ export function TxnRow({ t }) {
   const [open, setOpen] = useState(false);
   const Icon = TYPE_ICON[t.type] || Landmark;
   const out = t.type === 'restock' || t.type === 'loanRepayment';
-  const owed = t.type === 'sale' ? t.amount - t.paid : 0;
+  const owed = t.type === 'sale' ? t.outstanding ?? t.amount - t.paid : 0;
   return (
     <>
       <button className="item" onClick={() => setOpen(true)} style={t.reversed ? { opacity: .55 } : undefined}>
@@ -74,7 +77,9 @@ function TxnSheet({ t, onClose }) {
           <div className="muted" style={{ fontSize: 14, marginTop: 4 }}>Stock and debts go back to how they were. The cancelled record stays visible to you and to Wema.</div>
           <div className="row" style={{ marginTop: 12 }}>
             <button className="btn plain grow" onClick={() => setConfirm(false)}>Keep it</button>
-            <button className="btn danger grow" onClick={() => { reverseTxn(t.id, 'Cancelled by owner'); toast('Record cancelled.'); onClose(); }}>Cancel record</button>
+            <button className="btn danger grow" onClick={async () => { try {
+              await reverseTxn(t.id, 'Cancelled by owner'); toast('Cancellation saved.'); onClose();
+            } catch (error) { toast(error.message, 'bad'); } }}>Cancel record</button>
           </div>
         </div>
       ) : <button className="btn plain full" style={{ marginTop: 12 }} onClick={() => setConfirm(true)}><Undo2 size={18} />This was a mistake</button>)}
@@ -242,12 +247,14 @@ function DebtSheet({ c, onClose }) {
   const chips = c.balance > 0 ? [...new Set([c.balance, Math.round(c.balance / 2 / 100) * 100, 1000, 5000].filter(v => v > 0 && v <= c.balance))] : [];
   const msg = encodeURIComponent(`Hello ${c.name.split(' ')[0]}, this is ${s.profile.businessName}. A friendly reminder that your balance is ${naira(c.balance)}. You can pay to Wema Bank ${s.profile.accountNumber || ''} ${s.profile.accountName || ''}. Thank you!`);
   const wa = phone ? `https://wa.me/234${phone.replace(/\D/g, '').replace(/^0/, '')}?text=${msg}` : `https://wa.me/?text=${msg}`;
-  function pay(v) {
+  async function pay(v) {
     const n = Number(v);
     if (!(n > 0)) return;
-    recordDebtPayment(c.id, Math.min(n, c.balance));
+    try {
+    await recordDebtPayment(c.id, Math.min(n, c.balance));
     toast(`${naira(Math.min(n, c.balance))} from ${c.name} recorded.`, 'good');
     setAmt('');
+    } catch (error) { toast(error.message, 'bad'); }
   }
   return (
     <Sheet title={c.name} sub={c.balance > 0 ? `Owes ${naira(c.balance)}` : 'No debt'} onClose={onClose}>

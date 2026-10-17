@@ -15,7 +15,8 @@ export default function WhatsApp() {
   const end = useRef(null);
   const msgs = s.waSim.filter(m => !m.hidden);
   useEffect(() => { end.current?.scrollIntoView({ block: 'end' }); }, [msgs.length]);
-  const send = t => { const v = (t ?? text).trim(); if (!v) return; whatsappSimSend(v); setText(''); };
+  const send = async t => { const v = (t ?? text).trim(); if (!v) return;
+    try { await whatsappSimSend(v); setText(''); } catch (error) { toast(error.message, 'bad'); } };
 
   return (
     <div className="page" style={{ paddingBottom: 30 }}>

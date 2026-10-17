@@ -23,12 +23,15 @@ import {
 } from "./ledger.js";
 import { seller as hubSeller } from "./hub.js";
 import { SERVER_URL, API_KEY } from "./config.js";
+import { replicaRepository, replicaScope } from '../features/sync/replicaRepository.js';
+import { captureDomainChanges, domainOf, domainKeys, saleTotalNaira, toKobo } from '../features/sync/domain.js';
 
 const LEGACY_KEY = "vendora:v2";
 const DEMO_KEY = "vendora:demo:v1";
 const CUSTOM_DEMO_KEY = "vendora:custom-demo:v1";
 
 let activeStorageKey = DEMO_KEY;
+let activeReplicaScope = null;
 
 const accountStorageKey = (userId, businessId) =>
   `vendora:account:${encodeURIComponent(String(userId))}:${encodeURIComponent(String(businessId))}:v1`;
@@ -144,41 +147,63 @@ function switchStorage(key) {
   listeners.forEach((listener) => listener());
 }
 
-export function activateAccount(userId, businessId) {
+export async function activateAccount(userId, businessId) {
   if (!userId || !businessId) {
     throw new Error("A verified user and business are required.");
   }
 
   switchStorage(accountStorageKey(userId, businessId));
+  const scope = replicaScope(userId, businessId);
+  activeReplicaScope = scope;
+  const initial = domainOf(state);
+  const replica = await replicaRepository.update(scope, current => { current.domain ||= initial; });
+  publishReplica(scope, replica);
+  return replica;
 }
-export function hydrateAccountInventory(userId, businessId, inventory) {
-  const expectedKey = accountStorageKey(userId, businessId);
-
-  if (activeStorageKey !== expectedKey) {
-    throw new Error("Cannot hydrate inventory for an inactive business.");
-  }
-
-  if (!Array.isArray(inventory)) {
-    throw new Error("Invalid inventory response.");
-  }
-
-  // Do not overwrite an account that already has local products.
-  if (state.products.length > 0) {
-    return { hydrated: false, reason: "local-products-exist" };
-  }
-
-  setState((draft) => {
-    draft.products = structuredClone(inventory);
+export const getActiveReplicaScope = () => activeReplicaScope;
+export function reportSyncFailure(scope, error) {
+  if (activeReplicaScope !== scope) return;
+  state = { ...state, localSync: { ...state.localSync, phase: 'needs-attention',
+    lastError: { message: error.message || 'Offline storage is unavailable. Your existing records remain saved.' } } };
+  listeners.forEach(listener => listener());
+}
+export function publishReplica(scope, replica) {
+  if (activeReplicaScope !== scope) return;
+  state = { ...state, ...structuredClone(replica.domain), localSync: {
+    phase: replica.phase, pending: replica.outbox.filter(item => item.status !== 'rejected').length,
+    rejected: replica.outbox.filter(item => item.status === 'rejected'), lastError: replica.lastError,
+    lastSyncAt: replica.lastSyncAt, migrationWarning: replica.migrationWarning || null,
+  } };
+  persist(); listeners.forEach(listener => listener());
+  if (state.ledger.some(entry => !entry.sig)) scheduleSign();
+}
+export async function setDomainState(fn) {
+  if (!activeReplicaScope) { setState(fn); return; }
+  const scope = activeReplicaScope;
+  const base = structuredClone(state);
+  let localChanges = {};
+  const replica = await replicaRepository.update(scope, current => {
+    const draft = { ...base, ...structuredClone(current.domain || domainOf(base)) };
+    const before = domainOf(draft);
+    fn(draft);
+    localChanges = Object.fromEntries(Object.keys(draft).filter(key => !domainKeys.includes(key) && JSON.stringify(draft[key]) !== JSON.stringify(base[key]))
+      .map(key => [key, draft[key]]));
+    const after = domainOf(draft);
+    captureDomainChanges(current, before, after, { offline: navigator.onLine === false });
+    current.domain = after;
+    current.phase = navigator.onLine === false ? 'offline' : 'pending';
   });
-
-  return { hydrated: true, count: inventory.length };
+  if (activeReplicaScope === scope) state = { ...state, ...localChanges };
+  publishReplica(scope, replica);
+  window.dispatchEvent(new CustomEvent('vendora-outbox', { detail: { scope } }));
 }
-
 export function activateDemo() {
+  activeReplicaScope = null;
   switchStorage(DEMO_KEY);
 }
 
 export function startCustomDemo() {
+  activeReplicaScope = null;
   // Custom demo data is isolated from the sample shop and real accounts.
   switchStorage(CUSTOM_DEMO_KEY);
 
@@ -206,6 +231,7 @@ export function startCustomDemo() {
 }
 
 export function deactivateAccount() {
+  activeReplicaScope = null;
   switchStorage(DEMO_KEY);
 }
 
@@ -217,12 +243,48 @@ export function subscribe(fn) {
   return () => listeners.delete(fn);
 }
 export function setState(fn) {
+  const scope = activeReplicaScope;
+  const previous = state;
   const draft = structuredClone(state);
   fn(draft);
   state = draft;
   persist();
   listeners.forEach((l) => l());
   if (state.ledger.some((e) => !e.sig)) scheduleSign();
+  if (scope) {
+    // Non-stock metadata (receipt references, contact edits and new local
+    // evidence entries) must survive the next canonical pull as well. Core
+    // stock/sale actions use setDomainState and await their durable commit.
+    const updates = ['txns', 'customers'].flatMap(collection => {
+      const priorRecords = new Map(previous[collection].map(record => [record.id, record]));
+      return draft[collection].flatMap(record => {
+      const prior = priorRecords.get(record.id);
+      const fields = Object.fromEntries(Object.entries(record).filter(([key, value]) => !prior || JSON.stringify(value) !== JSON.stringify(prior[key])));
+      return Object.keys(fields).length ? [{ collection, id: record.id, fields }] : [];
+    }); });
+    const priorEntries = new Map(previous.ledger.map(entry => [entry.hash, entry]));
+    const newEntries = draft.ledger.filter(entry => !priorEntries.has(entry.hash));
+    const signed = draft.ledger.filter(entry => entry.sig && !priorEntries.get(entry.hash)?.sig);
+    if (updates.length || newEntries.length || signed.length) void replicaRepository.update(scope, replica => {
+      if (!replica.domain) return;
+      for (const update of updates) {
+        const record = replica.domain[update.collection].find(record => record.id === update.id);
+        if (record) Object.assign(record, update.fields);
+        else replica.domain[update.collection].push({ id: update.id, ...update.fields });
+      }
+      for (const entry of newEntries) {
+        if (replica.domain.ledger.some(saved => saved.hash === entry.hash)) continue;
+        const head = replica.domain.ledger.at(-1);
+        if (entry.prev === (head?.hash || '0'.repeat(64))) replica.domain.ledger.push(entry);
+        else if (!entry.sig) appendEntry(replica.domain, { kind: entry.kind, ref: entry.ref, evidence: entry.evidence, data: entry.data, at: entry.at });
+        else { replica.evidenceArchive ||= []; replica.evidenceArchive.push(entry); }
+      }
+      for (const entry of signed) {
+        const saved = replica.domain.ledger.find(saved => saved.hash === entry.hash);
+        if (saved && !saved.sig) saved.sig = entry.sig;
+      }
+    }).then(replica => publishReplica(scope, replica)).catch(error => reportSyncFailure(scope, error));
+  }
 }
 
 // ---------- device signatures for the ledger ----------
@@ -231,21 +293,28 @@ function scheduleSign() {
   if (signing) return;
   signing = true;
   setTimeout(async () => {
+    const signingKey = activeStorageKey;
+    const signingScope = activeReplicaScope;
     try {
       const k = await deviceKey();
       if (!k) return;
+      if (activeStorageKey !== signingKey) return;
       if (!state.ledgerKey)
         setState((d) => {
           d.ledgerKey = { publicJwk: k.publicJwk, fingerprint: k.fingerprint };
         });
       const todo = state.ledger.filter((e) => !e.sig).slice(0, 200);
       const sigs = {};
-      for (const e of todo) sigs[e.seq] = await signHash(e.hash);
+      for (const e of todo) sigs[e.hash] = await signHash(e.hash);
+      if (activeStorageKey !== signingKey) return;
       if (todo.length)
         setState((d) => {
           for (const e of d.ledger)
-            if (!e.sig && sigs[e.seq]) e.sig = sigs[e.seq];
+            if (!e.sig && sigs[e.hash]) e.sig = sigs[e.hash];
         });
+      if (signingScope) await replicaRepository.update(signingScope, replica => {
+        for (const entry of replica.domain?.ledger || []) if (!entry.sig && sigs[entry.hash]) entry.sig = sigs[entry.hash];
+      });
     } catch {
       /* signing unavailable on this browser */
     } finally {
@@ -353,7 +422,7 @@ export function wema() {
     activeStorageKey === DEMO_KEY ||
     activeStorageKey === CUSTOM_DEMO_KEY;
 
-  const key = !isDemoWorkspace && SERVER_URL ? "http" : "mock";
+  const key = !isDemoWorkspace && activeReplicaScope ? "http" : "mock";
   if (wemaCache.key !== key) {
     wemaCache = {
       key,
@@ -374,20 +443,21 @@ export function wema() {
 
 // ---------- recording ----------
 /** Parse free text (voice, chat or WhatsApp) and apply it. */
-export function recordText(text, source = "voice") {
+export async function recordText(text, source = "voice") {
   const result = parse(text, {
     inventory: state.products,
     customers: state.customers,
   });
-  return { result, ...applyParsed(result, source, text) };
+  return { result, ...await applyParsed(result, source, text) };
 }
 
-export function applyParsed(
+export async function applyParsed(
   op,
   source = "voice",
   rawText = "",
   evidenceOverride = null,
 ) {
+  const accountAction = Boolean(activeReplicaScope);
   const r = R();
   if (op.type.startsWith("query_"))
     return { reply: answerQuery(op), txnIds: [] };
@@ -402,7 +472,7 @@ export function applyParsed(
   const txnIds = [];
   let reply = "",
     warn = "";
-  setState((d) => {
+  await setDomainState((d) => {
     const stamp = staffStamp(d);
     const ev = evidenceOverride || EVIDENCE_OF[source] || "manual";
     if (op.type === "sale") {
@@ -413,17 +483,17 @@ export function applyParsed(
           name: p.name,
           qty: it.qty,
           unit: p.unit,
-          price: it.price ?? p.price,
+          price: accountAction ? Number(toKobo(it.price ?? p.price)) / 100 : it.price ?? p.price,
           cost: p.cost,
         };
       });
-      const total = op.total || items.reduce((a, i) => a + i.qty * i.price, 0);
-      const paid = Math.min(op.paid ?? total, total);
+      const total = accountAction ? saleTotalNaira(items) : op.total || items.reduce((a, i) => a + i.qty * i.price, 0);
+      const paid = Math.min(accountAction ? Number(toKobo(op.paid ?? total)) / 100 : op.paid ?? total, total);
       const cust = findOrCreateCustomer(d, op.customer);
       if (cust && total - paid > 0) cust.balance += total - paid;
       for (const it of items) {
         const p = findProduct(d, it.productId);
-        p.qty = Math.max(0, p.qty - it.qty);
+        p.qty = accountAction ? Math.round((p.qty - it.qty) * 1000) / 1000 : Math.max(0, p.qty - it.qty);
         p.updatedAt = Date.now();
         if (p.qty <= p.lowAt)
           warn =
@@ -519,8 +589,8 @@ export function applyParsed(
 }
 
 /** Mistakes are never deleted: a reversal entry cancels the original and both stay on record. */
-export function reverseTxn(id, reason = "Entered by mistake") {
-  setState((d) => {
+export async function reverseTxn(id, reason = "Entered by mistake") {
+  await setDomainState((d) => {
     const t = d.txns.find((x) => x.id === id);
     if (!t || t.reversed) return;
     if (t.type === "sale") {
@@ -553,21 +623,21 @@ export const undoTxn = (id) => reverseTxn(id, "Undone right after recording");
 
 // ---------- quick sales & restocks (no typing) ----------
 /** Till checkout. method: cash | transfer | credit | part. */
-export function completeSale({
+export async function completeSale({
   items,
   customer = null,
   method = "cash",
   paidNow = null,
   payStatus = null,
 }) {
-  const total = items.reduce((a, i) => a + i.qty * i.price, 0);
+  const total = activeReplicaScope ? saleTotalNaira(items) : items.reduce((a, i) => a + i.qty * i.price, 0);
   const paid =
     method === "credit"
       ? 0
       : method === "part"
         ? Math.min(Number(paidNow) || 0, total)
         : total;
-  const res = applyParsed(
+  const res = await applyParsed(
     {
       type: "sale",
       items,
@@ -664,7 +734,7 @@ export function answerQuery(q) {
 }
 
 // ---------- assistant chat ----------
-export function sendChat(text, viaVoice = false) {
+export async function sendChat(text, viaVoice = false) {
   setState((d) => {
     d.chat.push({
       id: uid("m"),
@@ -674,7 +744,7 @@ export function sendChat(text, viaVoice = false) {
       voice: viaVoice,
     });
   });
-  const { result, reply, txnIds, needsProduct } = recordText(
+  const { result, reply, txnIds, needsProduct } = await recordText(
     text,
     viaVoice ? "voice" : "chat",
   );
@@ -695,11 +765,11 @@ export function sendChat(text, viaVoice = false) {
 
 // WhatsApp preview inside the app (grouped confirmations, like the real channel)
 const WA_BATCH = 5;
-export function whatsappSimSend(text) {
+export async function whatsappSimSend(text) {
   setState((d) => {
     d.waSim.push({ fromUser: true, text, at: Date.now() });
   });
-  const { result, reply } = recordText(text, "whatsapp");
+  const { result, reply } = await recordText(text, "whatsapp");
   setState((d) => {
     const isEntry =
       ["sale", "restock", "debt_payment"].includes(result.type) &&
@@ -753,13 +823,14 @@ export function whatsappSimSend(text) {
 }
 
 // ---------- products & customers ----------
-export function saveProduct(p) {
+export async function saveProduct(p) {
+  const accountAction = Boolean(activeReplicaScope);
   let id = p.id;
-  setState((d) => {
+  await setDomainState((d) => {
     const clean = {
       ...p,
-      price: Number(p.price) || 0,
-      cost: Number(p.cost) || 0,
+      price: accountAction ? Number(toKobo(p.price)) / 100 : Number(p.price) || 0,
+      cost: accountAction ? Number(toKobo(p.cost || 0)) / 100 : Number(p.cost) || 0,
       qty: Number(p.qty) || 0,
       lowAt: Number(p.lowAt) || 0,
       aliases:
@@ -774,6 +845,8 @@ export function saveProduct(p) {
     const i = d.products.findIndex((x) => x.id === p.id);
     if (i >= 0) {
       const before = d.products[i];
+      if (accountAction && p.observedQty !== undefined)
+        clean.qty = Math.round((before.qty + Number(p.qty) - Number(p.observedQty)) * 1000) / 1000;
       if (before.qty !== clean.qty)
         appendEntry(d, {
           kind: "adjust",
@@ -812,8 +885,8 @@ export function saveProduct(p) {
   });
   return id;
 }
-export function deleteProduct(id) {
-  setState((d) => {
+export async function deleteProduct(id) {
+  await setDomainState((d) => {
     d.products = d.products.filter((p) => p.id !== id);
     appendEntry(d, {
       kind: "product-removed",
@@ -862,11 +935,11 @@ export async function requestPayment({
     throw new WemaError("Open your Wema account first.");
   let saleId = null;
   if (items.length)
-    saleId = completeSale({
+    saleId = (await completeSale({
       items,
       customer: customerName ? { name: customerName } : null,
       method: "transfer",
-    }).txnIds[0];
+    })).txnIds[0];
   const pr = await wema().createPaymentRequest(
     state.profile.accountNumber,
     amount,
@@ -934,13 +1007,13 @@ export function reopenCredit(id) {
 }
 
 /** Trader answers "What was this payment for?" */
-export function resolveCredit(creditId, choice) {
+export async function resolveCredit(creditId, choice) {
   const c = state.credits.find((x) => x.id === creditId);
   if (!c) return null;
   const ev = c.viaReceipt ? "receipt" : "bank";
   let txnId = null;
   if (choice.type === "sale") {
-    txnId = applyParsed(
+    txnId = (await applyParsed(
       {
         type: "sale",
         items: choice.items,
@@ -952,10 +1025,10 @@ export function resolveCredit(creditId, choice) {
       "transfer",
       "",
       ev,
-    ).txnIds[0];
+    )).txnIds[0];
   } else if (choice.type === "debt") {
     const cust = state.customers.find((x) => x.id === choice.customerId);
-    txnId = applyParsed(
+    txnId = (await applyParsed(
       {
         type: "debt_payment",
         customer: { id: cust.id, name: cust.name },
@@ -964,7 +1037,7 @@ export function resolveCredit(creditId, choice) {
       "transfer",
       "",
       ev,
-    ).txnIds[0];
+    )).txnIds[0];
     setState((d) => {
       const t = d.txns.find((x) => x.id === txnId);
       if (t) t.payStatus = "verified";
@@ -1163,14 +1236,14 @@ export function placeOrder({ sellerId, lines, pay = "wallet", loanId = null }) {
   return id;
 }
 /** Goods arrived: stock goes up with "verified supplier" evidence. */
-export function confirmDelivery(orderId) {
+export async function confirmDelivery(orderId) {
   const o = state.orders.find((x) => x.id === orderId);
   if (!o || o.status === "delivered") return;
   const items = [];
   for (const l of o.lines) {
     let pid = l.productId;
     if (!pid)
-      pid = saveProduct({
+      pid = await saveProduct({
         name: l.name,
         unit: l.unit,
         price: Math.round(l.price * 1.2),
@@ -1181,7 +1254,7 @@ export function confirmDelivery(orderId) {
       });
     items.push({ productId: pid, qty: l.qty, cost: l.price });
   }
-  const res = applyParsed(
+  const res = await applyParsed(
     {
       type: "restock",
       items,
@@ -1550,82 +1623,7 @@ export function resetAll() {
   listeners.forEach((l) => l());
 }
 
-// ---------- sync with the Vendora server (WhatsApp entries, Wema credits, ledger anchoring) ----------
-let syncing = false;
-export async function syncNow() {
-  const p = state.profile;
-  if (!SERVER_URL || syncing || !p.phone || activeStorageKey !== LEGACY_KEY)
-    return { skipped: true };
-  syncing = true;
-  try {
-    const api = wema();
-    const head = state.ledger[state.ledger.length - 1];
-    const body = {
-      phone: p.phone,
-      ackedThrough: state.sync.ackedThrough,
-      creditsSince: state.sync.creditsSince,
-      profile: {
-        name: p.name,
-        businessName: p.businessName,
-        language: p.language,
-        accountNumber: p.accountNumber,
-        whatsappAlerts: p.whatsappAlerts,
-      },
-      inventory: state.products.map(
-        ({ id, name, aliases, unit, price, qty, lowAt }) => ({
-          id,
-          name,
-          aliases,
-          unit,
-          price,
-          qty,
-          lowAt,
-        }),
-      ),
-      customers: state.customers.map(({ id, name, balance }) => ({
-        id,
-        name,
-        balance,
-      })),
-      ledgerHead: head
-        ? {
-            seq: head.seq,
-            hash: head.hash,
-            sig: head.sig || null,
-            key: state.ledgerKey?.publicJwk || null,
-          }
-        : null,
-    };
-    const res = await api.call("POST", "/api/sync", body);
-    let last = state.sync.ackedThrough;
-    for (const e of res.entries || []) {
-      if (e.op && e.op.type !== "voice_pending")
-        applyParsed(e.op, "whatsapp", e.text || "");
-      last = Math.max(last, e.seq);
-    }
-    for (const c of res.credits || []) handleCredit(c);
-    setState((d) => {
-      d.sync.ackedThrough = last;
-      d.sync.lastSyncAt = Date.now();
-      d.sync.lastError = null;
-      if (res.sealOk !== undefined) d.sync.sealOk = res.sealOk;
-    });
-    if ((res.entries || []).length)
-      toast(
-        `${res.entries.length} WhatsApp ${res.entries.length === 1 ? "entry" : "entries"} added.`,
-        "good",
-      );
-    return res;
-  } catch (e) {
-    setState((d) => {
-      d.sync.lastError = e.message;
-    });
-    return { error: e.message };
-  } finally {
-    syncing = false;
-  }
-}
-export const hasServer = () => !!SERVER_URL && activeStorageKey === LEGACY_KEY;
+export const hasServer = () => Boolean(activeReplicaScope);
 
 export { WemaError };
 

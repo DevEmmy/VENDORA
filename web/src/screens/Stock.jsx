@@ -29,6 +29,8 @@ function MyStock({ openAdd }) {
   const [filter, setFilter] = useState('all');
   const [delta, setDelta] = useState({});
   const [edit, setEdit] = useState(openAdd ? {} : null);
+  const [saveError, setSaveError] = useState('');
+  const [saving, setSaving] = useState(false);
   const owner = isOwner(s);
   const low = s.products.filter(p => p.qty <= p.lowAt);
   const list = s.products
@@ -40,11 +42,16 @@ function MyStock({ openAdd }) {
   const cost = changes.reduce((a, [id, n]) => a + n * (s.products.find(p => p.id === id)?.cost || 0), 0);
   const bump = (id, by) => { haptic(8); setDelta(d => ({ ...d, [id]: Math.max(0, (d[id] || 0) + by) })); };
 
-  function save() {
-    quickRestock(Object.fromEntries(changes));
+  async function save() {
+    if (saving) return;
+    setSaving(true); setSaveError('');
+    try {
+    await quickRestock(Object.fromEntries(changes));
     haptic([20, 40, 20]);
     toast(`Stock updated: ${addedCount} item${addedCount === 1 ? '' : 's'} added.`, 'good');
     setDelta({});
+    } catch (error) { setSaveError(error.message); }
+    finally { setSaving(false); }
   }
 
   return (
@@ -78,7 +85,8 @@ function MyStock({ openAdd }) {
                 </button>
                 <div className="stepper">
                   <button onClick={() => bump(p.id, -1)} disabled={!n} aria-label={`One less ${p.name}`} style={{ opacity: n ? 1 : .35 }}><Minus size={18} /></button>
-                  <span className="v" aria-live="polite">{n ? `+${n}` : 0}</span>
+                  <input className="v" type="number" min="0" step="0.001" aria-label={`Restock quantity for ${p.name}`} value={n}
+                    style={{ width: 64 }} onChange={event => setDelta(value => ({ ...value, [p.id]: Math.max(0, Number(event.target.value) || 0) }))} />
                   <button onClick={() => bump(p.id, 1)} aria-label={`One more ${p.name}`}><Plus size={18} /></button>
                 </div>
               </div>
@@ -91,12 +99,13 @@ function MyStock({ openAdd }) {
 
       {changes.length > 0 && (
         <div className="savebar">
+          {saveError && <p role="alert">{saveError}</p>}
           <div className="grow">
             <div style={{ fontSize: 13, opacity: .9 }}>{addedCount} item{addedCount === 1 ? '' : 's'} arriving{cost ? `, cost ${naira(cost)}` : ''}</div>
             <div style={{ fontSize: 17, fontWeight: 800 }}>Add to stock</div>
           </div>
           <button className="btn sm" style={{ background: 'rgba(255,255,255,.18)', color: '#fff' }} onClick={() => setDelta({})}>Clear</button>
-          <button className="btn" style={{ background: '#fff', color: 'var(--leaf)' }} onClick={save}>Save</button>
+          <button className="btn" style={{ background: '#fff', color: 'var(--leaf)' }} disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Save'}</button>
         </div>
       )}
       {edit && <ProductSheet p={edit} onClose={() => setEdit(null)} />}
@@ -108,15 +117,22 @@ function ProductSheet({ p, onClose }) {
   const isNew = !p.id;
   const [f, setF] = useState({ name: p.name || '', unit: p.unit || 'bag', cost: p.cost ? String(p.cost) : '', price: p.price ? String(p.price) : '', qty: p.qty ?? 0, lowAt: p.lowAt ?? 3, aliases: (p.aliases || []).join(', ') });
   const [confirmDel, setConfirmDel] = useState(false);
-  const num = k => e => setF({ ...f, [k]: e.target.value.replace(/\D/g, '') });
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const num = k => e => setF({ ...f, [k]: e.target.value.replace(/[^\d.]/g, '') });
   const step = (k, by) => setF(x => ({ ...x, [k]: Math.max(0, (Number(x[k]) || 0) + by) }));
   const ok = f.name.trim().length >= 2 && Number(f.price) > 0;
   const margin = Number(f.price) && Number(f.cost) ? Math.round((f.price - f.cost) / f.price * 100) : null;
 
-  function save() {
-    saveProduct({ ...p, ...f, name: f.name.trim(), qty: Number(f.qty), lowAt: Number(f.lowAt), reason: 'Stock count corrected' });
+  async function save() {
+    if (busy) return;
+    setBusy(true); setError('');
+    try {
+    await saveProduct({ ...p, ...f, observedQty: p.qty, name: f.name.trim(), qty: Number(f.qty), lowAt: Number(f.lowAt), reason: 'Stock count corrected' });
     toast(isNew ? `${f.name.trim()} added.` : 'Changes saved.', 'good');
     onClose();
+    } catch (failure) { setError(failure.message); }
+    finally { setBusy(false); }
   }
   return (
     <Sheet title={isNew ? 'Add an item' : p.name} sub={isNew ? 'Tap a common item or type your own' : 'Change price or correct the count'} onClose={onClose}>
@@ -131,19 +147,22 @@ function ProductSheet({ p, onClose }) {
       {margin != null && <div className={'hint ' + (margin < 0 ? 'pepper' : '')}>{margin < 0 ? 'You sell below cost.' : `You make ${naira(f.price - f.cost)} (${margin}%) on each ${f.unit}.`}</div>}
       <div className="row between" style={{ marginTop: 16 }}>
         <span style={{ fontWeight: 700 }}>{isNew ? 'How many do you have now?' : 'Count in the shop'}</span>
-        <div className="stepper"><button onClick={() => step('qty', -1)} aria-label="One less"><Minus size={18} /></button><span className="v">{f.qty}</span><button onClick={() => step('qty', 1)} aria-label="One more"><Plus size={18} /></button></div>
+        <div className="stepper"><button onClick={() => step('qty', -1)} aria-label="One less"><Minus size={18} /></button><input className="v" type="number" min="0" step="0.001" aria-label="Count in the shop" value={f.qty} onChange={num('qty')} /><button onClick={() => step('qty', 1)} aria-label="One more"><Plus size={18} /></button></div>
       </div>
       {!isNew && Number(f.qty) !== p.qty && <div className="hint">The change from {p.qty} to {f.qty} is saved in your records as a correction.</div>}
       <div className="row between" style={{ marginTop: 12 }}>
         <span style={{ fontWeight: 700 }}>Warn me when it gets to</span>
-        <div className="stepper"><button onClick={() => step('lowAt', -1)} aria-label="Lower"><Minus size={18} /></button><span className="v">{f.lowAt}</span><button onClick={() => step('lowAt', 1)} aria-label="Higher"><Plus size={18} /></button></div>
+        <div className="stepper"><button onClick={() => step('lowAt', -1)} aria-label="Lower"><Minus size={18} /></button><input className="v" type="number" min="0" step="0.001" aria-label="Low stock threshold" value={f.lowAt} onChange={num('lowAt')} /><button onClick={() => step('lowAt', 1)} aria-label="Higher"><Plus size={18} /></button></div>
       </div>
       <Field label="Other names customers use (optional)" hint="Helps Vendora understand you when you talk, e.g. iresi, osikapa"><input value={f.aliases} onChange={e => setF({ ...f, aliases: e.target.value })} placeholder="Separate with commas" /></Field>
-      <button className="btn primary full" style={{ marginTop: 18 }} disabled={!ok} onClick={save}>{isNew ? 'Add item' : 'Save changes'}</button>
+      {error && <p role="alert">{error}</p>}
+      <button className="btn primary full" style={{ marginTop: 18 }} disabled={!ok || busy} onClick={save}>{busy ? 'Saving…' : isNew ? 'Add item' : 'Save changes'}</button>
       {!isNew && (confirmDel ? (
         <div className="row" style={{ marginTop: 10 }}>
           <button className="btn plain grow" onClick={() => setConfirmDel(false)}>Keep it</button>
-          <button className="btn danger grow" onClick={() => { deleteProduct(p.id); toast(`${p.name} removed.`); onClose(); }}>Remove item</button>
+          <button className="btn danger grow" disabled={busy} onClick={async () => { setBusy(true); try {
+            await deleteProduct(p.id); toast(`${p.name} removed.`); onClose();
+          } catch (failure) { setError(failure.message); } finally { setBusy(false); } }}>Remove item</button>
         </div>
       ) : <button className="btn plain full" style={{ marginTop: 10 }} onClick={() => setConfirmDel(true)}><Trash2 size={18} />Remove this item</button>)}
     </Sheet>
