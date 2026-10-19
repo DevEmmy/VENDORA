@@ -715,3 +715,7 @@ input[type=range] { width: 100%; accent-color: var(--royal); height: 30px; }
   outline: 3px solid #ffbd00;
   outline-offset: 3px;
 }
+/* Space between account menu actions */
+.vendora-account-menu > .vendora-account-signout + .vendora-account-signout {
+  margin-top: 8px;
+}

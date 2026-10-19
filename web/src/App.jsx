@@ -910,6 +910,17 @@ export default function App() {
                 <button
                   type="button"
                   className="vendora-account-signout"
+                  onClick={() => {
+                    setAccountMenuOpen(false);
+                    go("profile");
+                  }}
+                >
+                  Profile &amp; Settings
+                </button>
+
+                <button
+                  type="button"
+                  className="vendora-account-signout"
                   disabled={loggingOut}
                   onClick={() => {
                     setAccountMenuOpen(false);
