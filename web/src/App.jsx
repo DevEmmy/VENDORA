@@ -29,14 +29,16 @@ import {
   updateProfile,
 } from "./lib/store.js";
 
-
 import { primeSpeech, haptic } from "./lib/voice.js";
 import { useAuthStore } from "./features/auth/authStore.js";
 import { authApi } from "./features/auth/authApi.js";
 import { clearPrivateCaches } from "./lib/privacy.js";
 import { restoreSession } from "./features/auth/authSession.js";
-import { startAccountSync, getActiveSync } from './features/sync/accountSync.js';
-import SyncStatus from './features/sync/SyncStatus.jsx';
+import {
+  startAccountSync,
+  getActiveSync,
+} from "./features/sync/accountSync.js";
+import SyncStatus from "./features/sync/SyncStatus.jsx";
 
 import Welcome from "./screens/Welcome.jsx";
 import Setup from "./screens/Setup.jsx";
@@ -52,7 +54,7 @@ import LoanApply from "./screens/LoanApply.jsx";
 import Score from "./screens/Score.jsx";
 import Records from "./screens/Records.jsx";
 import Profile from "./screens/Profile.jsx";
-import Password, { PasswordRecovery } from './screens/Password.jsx';
+import Password, { PasswordRecovery } from "./screens/Password.jsx";
 import Staff from "./screens/Staff.jsx";
 import Premium from "./screens/Premium.jsx";
 import WhatsApp from "./screens/WhatsApp.jsx";
@@ -160,7 +162,8 @@ function AuthScreen({ onDemo, expired = false }) {
       const phone = form.phone.trim();
       const passwordLength = [...form.password].length;
       const normalizedPhone = phone.replace(/[ +()-]/g, "");
-      const validPhone = /^0\d{10}$/.test(normalizedPhone) ||
+      const validPhone =
+        /^0\d{10}$/.test(normalizedPhone) ||
         /^[1-9]\d{9,14}$/.test(normalizedPhone);
 
       if (name.length < 2 || name.length > 200) {
@@ -183,15 +186,17 @@ function AuthScreen({ onDemo, expired = false }) {
         return;
       }
 
-      if (![
-        "Foodstuff",
-        "Provisions",
-        "Clothing",
-        "Phones & accessories",
-        "Cosmetics",
-        "Pharmacy",
-        "Other",
-      ].includes(form.businessType)) {
+      if (
+        ![
+          "Foodstuff",
+          "Provisions",
+          "Clothing",
+          "Phones & accessories",
+          "Cosmetics",
+          "Pharmacy",
+          "Other",
+        ].includes(form.businessType)
+      ) {
         setError("Please select a valid business type.");
         return;
       }
@@ -235,7 +240,8 @@ function AuthScreen({ onDemo, expired = false }) {
     }
   };
 
-  if (recovering) return <PasswordRecovery onBack={() => setRecovering(false)} />;
+  if (recovering)
+    return <PasswordRecovery onBack={() => setRecovering(false)} />;
 
   const fieldStyle = {
     width: "100%",
@@ -258,7 +264,12 @@ function AuthScreen({ onDemo, expired = false }) {
         }}
       >
         <h1>Vendora</h1>
-        {expired && <p role="status">Your session has ended. Sign in again. Your offline records are saved.</p>}
+        {expired && (
+          <p role="status">
+            Your session has ended. Sign in again. Your offline records are
+            saved.
+          </p>
+        )}
 
         <p>
           {mode === "login"
@@ -322,7 +333,9 @@ function AuthScreen({ onDemo, expired = false }) {
                 onChange={(e) => change("businessType", e.target.value)}
                 required
               >
-                <option value="" disabled>Select business type</option>
+                <option value="" disabled>
+                  Select business type
+                </option>
                 {[
                   "Foodstuff",
                   "Provisions",
@@ -332,7 +345,9 @@ function AuthScreen({ onDemo, expired = false }) {
                   "Pharmacy",
                   "Other",
                 ].map((type) => (
-                  <option key={type} value={type}>{type}</option>
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
                 ))}
               </select>
 
@@ -376,8 +391,16 @@ function AuthScreen({ onDemo, expired = false }) {
           </button>
         </p>
 
-        {mode === 'login' && <p><button type="button" onClick={() => setRecovering(true)}>Forgot password?</button></p>}
-        {mode === 'register' && <p>Use 8–128 characters and avoid common passwords.</p>}
+        {mode === "login" && (
+          <p>
+            <button type="button" onClick={() => setRecovering(true)}>
+              Forgot password?
+            </button>
+          </p>
+        )}
+        {mode === "register" && (
+          <p>Use 8–128 characters and avoid common passwords.</p>
+        )}
         <button type="button" onClick={onDemo}>
           Explore demo
         </button>
@@ -394,13 +417,11 @@ export default function App() {
     storeState.alerts?.find(
       (alert) =>
         alert.creditId &&
-        storeState.credits?.some(
-          (credit) => credit.id === alert.creditId
-        )
+        storeState.credits?.some((credit) => credit.id === alert.creditId),
     ) ?? null;
   const [loggingOut, setLoggingOut] = useState(false);
   const [authError, setAuthError] = useState("");
-  const [scopeError, setScopeError] = useState('');
+  const [scopeError, setScopeError] = useState("");
   const [pendingLogout, setPendingLogout] = useState(false);
   const [tab, setTab] = useState("home");
   const [tabParams, setTabParams] = useState({});
@@ -420,8 +441,7 @@ export default function App() {
     if (!accountMenuOpen) return;
 
     const onPointerDown = (event) => {
-            const insideAccountMenu =
-        accountMenuRef.current?.contains(event.target);
+      const insideAccountMenu = accountMenuRef.current?.contains(event.target);
 
       const clickedHomeAvatar =
         event.target instanceof Element &&
@@ -452,6 +472,13 @@ export default function App() {
   const [demoMode, setDemoMode] = useState(
     () => sessionStorage.getItem("vendora:demo-mode") === "true",
   );
+  useEffect(() => {
+    if (demoMode) {
+      sessionStorage.setItem("vendora:demo-mode", "true");
+    } else {
+      sessionStorage.removeItem("vendora:demo-mode");
+    }
+  }, [demoMode]);
 
   useEffect(() => {
     restoreSession();
@@ -469,7 +496,7 @@ export default function App() {
         : null;
   useEffect(() => {
     setActiveScope(null);
-    setScopeError('');
+    setScopeError("");
     let cancelled = false;
 
     if (authStatus === "authenticated" && user?.id && selectedBusinessId) {
@@ -479,14 +506,29 @@ export default function App() {
 
       if (!isMember) return;
 
-      void activateAccount(user.id, selectedBusinessId).then(() => {
-        if (cancelled) return;
-        const business = memberships.find(item => item.businessId === selectedBusinessId)?.business;
-        updateProfile({ name: user.name || '', phone: user.phone || '', businessName: business?.businessName || '',
-          businessType: business?.businessType || '', city: business?.city || '', onboarded: true, demo: false });
-        setActiveScope(`account:${user.id}:${selectedBusinessId}`);
-      }).catch(error => { if (!cancelled) setScopeError(error.message); });
-      return () => { cancelled = true; };
+      void activateAccount(user.id, selectedBusinessId)
+        .then(() => {
+          if (cancelled) return;
+          const business = memberships.find(
+            (item) => item.businessId === selectedBusinessId,
+          )?.business;
+          updateProfile({
+            name: user.name || "",
+            phone: user.phone || "",
+            businessName: business?.businessName || "",
+            businessType: business?.businessType || "",
+            city: business?.city || "",
+            onboarded: true,
+            demo: false,
+          });
+          setActiveScope(`account:${user.id}:${selectedBusinessId}`);
+        })
+        .catch((error) => {
+          if (!cancelled) setScopeError(error.message);
+        });
+      return () => {
+        cancelled = true;
+      };
     }
 
     deactivateAccount();
@@ -514,7 +556,6 @@ export default function App() {
 
     return stopSync;
   }, [authStatus, user?.id, selectedBusinessId, activeScope]);
-
 
   const go = useCallback((page, params = {}) => {
     haptic(8);
@@ -618,7 +659,10 @@ export default function App() {
         if (discardConfirmed === true) await sync.discardForLogout();
         else {
           await sync.sync();
-          if (await sync.pending()) { setPendingLogout(true); return; }
+          if (await sync.pending()) {
+            setPendingLogout(true);
+            return;
+          }
         }
       }
       setPendingLogout(false);
@@ -714,7 +758,7 @@ export default function App() {
     return (
       <StatusScreen
         title="Loading business"
-        message={scopeError || 'Preparing your business workspace...'}
+        message={scopeError || "Preparing your business workspace..."}
         action={scopeError ? () => location.reload() : undefined}
         actionLabel="Try again"
       />
@@ -736,7 +780,7 @@ export default function App() {
         />
       );
     }
-}
+  }
   if (authStatus !== "authenticated" && (demoWelcome || !onboarded)) {
     return (
       <div className="device onboarding">
@@ -765,7 +809,12 @@ export default function App() {
           />
         )}
 
-        {onb === "account" && <OpenAccount back={() => setOnb("perms")} onComplete={() => setDemoWelcome(false)} />}
+        {onb === "account" && (
+          <OpenAccount
+            back={() => setOnb("perms")}
+            onComplete={() => setDemoWelcome(false)}
+          />
+        )}
 
         {demoMode && (
           <div className="vendora-demo-exit-wrap">
@@ -805,7 +854,14 @@ export default function App() {
   const current = top ? top.page : tab;
 
   return (
-    <NavCtx.Provider value={{ go, back, tab, openAccountMenu: () => setAccountMenuOpen((open) => !open) }}>
+    <NavCtx.Provider
+      value={{
+        go,
+        back,
+        tab,
+        openAccountMenu: () => setAccountMenuOpen((open) => !open),
+      }}
+    >
       <div className="device app">
         <nav className={"nav" + (Page ? " page-open" : "")} aria-label="Main">
           <div className="brand">
@@ -864,7 +920,7 @@ export default function App() {
                   {authStatus === "authenticated"
                     ? memberships.find(
                         (membership) =>
-                          membership.businessId === selectedBusinessId
+                          membership.businessId === selectedBusinessId,
                       )?.business?.name || "My business"
                     : "Demo account"}
                 </strong>
@@ -878,34 +934,32 @@ export default function App() {
 
             {accountMenuOpen && (
               <div className="vendora-account-menu">
-                {authStatus === "authenticated" &&
-                  memberships.length > 1 && (
-                    <div className="vendora-business-picker">
-                      <label htmlFor="vendora-business-select">
-                        Switch business
-                      </label>
-                      <select
-                        id="vendora-business-select"
-                        value={selectedBusinessId}
-                        onChange={(event) => {
-                          useAuthStore.getState().selectBusiness(
-                            event.target.value
-                          );
-                          setAccountMenuOpen(false);
-                        }}
-                      >
-                        {memberships.map((membership) => (
-                          <option
-                            key={membership.businessId}
-                            value={membership.businessId}
-                          >
-                            {membership.business?.name ||
-                              membership.businessId}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
+                {authStatus === "authenticated" && memberships.length > 1 && (
+                  <div className="vendora-business-picker">
+                    <label htmlFor="vendora-business-select">
+                      Switch business
+                    </label>
+                    <select
+                      id="vendora-business-select"
+                      value={selectedBusinessId}
+                      onChange={(event) => {
+                        useAuthStore
+                          .getState()
+                          .selectBusiness(event.target.value);
+                        setAccountMenuOpen(false);
+                      }}
+                    >
+                      {memberships.map((membership) => (
+                        <option
+                          key={membership.businessId}
+                          value={membership.businessId}
+                        >
+                          {membership.business?.name || membership.businessId}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 <button
                   type="button"
@@ -945,7 +999,7 @@ export default function App() {
         </nav>
 
         <main className="main">
-          {authStatus === 'authenticated' && <SyncStatus />}
+          {authStatus === "authenticated" && <SyncStatus />}
           {authError && <p role="alert">{authError}</p>}
 
           {Page ? (
@@ -956,14 +1010,43 @@ export default function App() {
         </main>
 
         {creditAlert && <CreditAlert alert={creditAlert} />}
-        {pendingLogout && <div className="scrim"><section className="sheet" role="dialog" aria-modal="true" aria-label="Unsynced records">
-          <h2>Records still need to sync</h2>
-          <p>Keep this account open to synchronize them, or explicitly discard its pending uploads before signing out.</p>
-          {authError && <p role="alert">{authError}</p>}
-          <button className="btn soft full" onClick={() => setPendingLogout(false)}>Keep working</button>
-          <button className="btn primary full" disabled={loggingOut} onClick={() => logout()}>Sync and sign out</button>
-          <button className="btn danger full" disabled={loggingOut} onClick={() => logout(true)}>Discard pending uploads and sign out</button>
-        </section></div>}
+        {pendingLogout && (
+          <div className="scrim">
+            <section
+              className="sheet"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Unsynced records"
+            >
+              <h2>Records still need to sync</h2>
+              <p>
+                Keep this account open to synchronize them, or explicitly
+                discard its pending uploads before signing out.
+              </p>
+              {authError && <p role="alert">{authError}</p>}
+              <button
+                className="btn soft full"
+                onClick={() => setPendingLogout(false)}
+              >
+                Keep working
+              </button>
+              <button
+                className="btn primary full"
+                disabled={loggingOut}
+                onClick={() => logout()}
+              >
+                Sync and sign out
+              </button>
+              <button
+                className="btn danger full"
+                disabled={loggingOut}
+                onClick={() => logout(true)}
+              >
+                Discard pending uploads and sign out
+              </button>
+            </section>
+          </div>
+        )}
 
         <Toasts />
       </div>
