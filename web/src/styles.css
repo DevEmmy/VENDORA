@@ -719,3 +719,32 @@ input[type=range] { width: 100%; accent-color: var(--royal); height: 30px; }
 .vendora-account-menu > .vendora-account-signout + .vendora-account-signout {
   margin-top: 8px;
 }
+
+/* Sell screen quantity input */
+.qty input[type="number"] {
+  width: 64px;
+  min-width: 0;
+  background: transparent;
+  color: #ffffff;
+  border: none;
+  outline: none;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 800;
+  font-family: inherit;
+  padding: 4px 0;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.qty input[type="number"]::-webkit-inner-spin-button,
+.qty input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.qty input[type="number"]:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
