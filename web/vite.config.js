@@ -1,11 +1,10 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-const isProd = process.env.NODE_ENV === 'production';
-
 export default defineConfig({
   plugins: [react()],
-  base: isProd ? '/VENDORA/' : './',
+  // Relative paths work everywhere: GitHub Pages (/VENDORA/), Render (root) and local preview.
+  base: process.env.VITE_BASE || './',
 
   server: {
     proxy: {

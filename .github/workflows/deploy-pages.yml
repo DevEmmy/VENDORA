@@ -32,6 +32,7 @@ jobs:
       - run: npm run build
         env:
           # Optional. Set in Settings > Secrets and variables > Actions.
+          VITE_SERVER_URL: ${{ vars.VENDORA_SERVER_URL }}
           VITE_TTS_URL: ${{ vars.VENDORA_SERVER_URL }}
           VITE_YARNGPT_VOICE: ${{ vars.YARNGPT_VOICE }}
           # Demo only: this puts the YarnGPT key inside the public website. Prefer VENDORA_SERVER_URL.
