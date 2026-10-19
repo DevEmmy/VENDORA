@@ -18,10 +18,9 @@ import {
 } from "lucide-react";
 
 import { useStore, Toasts } from "./components/ui.jsx";
-import { SERVER_URL } from "./lib/config.js";
-
-// No server configured (e.g. GitHub Pages only): Vendora runs fully on the phone, no sign-in step.
-const LOCAL_ONLY = !SERVER_URL;
+// Phone-only build (GitHub Pages without a server): no sign-in step, everything saved on the phone.
+// Set VITE_LOCAL_ONLY=true at build time. Leave it unset when the site proxies /api to the server.
+const LOCAL_ONLY = import.meta.env.VITE_LOCAL_ONLY === "true";
 
 import {
   loadDemo,
