@@ -128,6 +128,7 @@ function StatusScreen({ title, message, action, actionLabel }) {
 
 function AuthScreen({ onDemo, expired = false }) {
   const [recovering, setRecovering] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [mode, setMode] = useState("login");
   const [form, setForm] = useState({
     name: "",
@@ -243,171 +244,211 @@ function AuthScreen({ onDemo, expired = false }) {
   if (recovering)
     return <PasswordRecovery onBack={() => setRecovering(false)} />;
 
-  const fieldStyle = {
-    width: "100%",
-    padding: 12,
-    marginBottom: 12,
-    borderRadius: 8,
-    border: "1px solid #aaa",
-    boxSizing: "border-box",
-  };
-
   return (
-    <div className="device onboarding">
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 420,
-          margin: "auto",
-          padding: 24,
-          boxSizing: "border-box",
-        }}
-      >
-        <h1>Vendora</h1>
-        {expired && (
-          <p role="status">
-            Your session has ended. Sign in again. Your offline records are
-            saved.
-          </p>
-        )}
+    <div className="device onboarding vendora-auth">
+      <div className="vendora-auth-scroll">
+        <header className="vendora-auth-header">
+          <div className="vendora-auth-brand">
+            <span className="vendora-auth-brand-icon" aria-hidden="true">
+              V
+            </span>
+            <span>Vendora</span>
+          </div>
 
-        <p>
-          {mode === "login"
-            ? "Sign in to your business."
-            : "Create your Vendora account."}
-        </p>
-
-        <form onSubmit={submit}>
-          {mode === "register" && (
-            <input
-              style={fieldStyle}
-              placeholder="Full name"
-              aria-label="Full name"
-              value={form.name}
-              onChange={(e) => change("name", e.target.value)}
-              required
-            />
-          )}
-
-          <input
-            style={fieldStyle}
-            placeholder="Phone number"
-            aria-label="Phone number"
-            type="tel"
-            value={form.phone}
-            onChange={(e) => change("phone", e.target.value)}
-            required
-          />
-
-          <input
-            style={fieldStyle}
-            placeholder="Password"
-            aria-label="Password"
-            type="password"
-            value={form.password}
-            onChange={(e) => change("password", e.target.value)}
-            required
-          />
-
-          {mode === "register" && (
-            <>
-              <input
-                style={fieldStyle}
-                placeholder="Business name"
-                aria-label="Business name"
-                value={form.businessName}
-                onChange={(e) => change("businessName", e.target.value)}
-                required
-              />
-
-              <select
-                style={{
-                  ...fieldStyle,
-                  background: "#fff",
-                  color: "#101b3d",
-                  minHeight: 48,
-                  cursor: "pointer",
-                }}
-                aria-label="Business type"
-                value={form.businessType}
-                onChange={(e) => change("businessType", e.target.value)}
-                required
-              >
-                <option value="" disabled>
-                  Select business type
-                </option>
-                {[
-                  "Foodstuff",
-                  "Provisions",
-                  "Clothing",
-                  "Phones & accessories",
-                  "Cosmetics",
-                  "Pharmacy",
-                  "Other",
-                ].map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
-                ))}
-              </select>
-
-              <input
-                style={fieldStyle}
-                placeholder="City"
-                aria-label="City"
-                value={form.city}
-                onChange={(e) => change("city", e.target.value)}
-                required
-              />
-            </>
-          )}
-
-          {error && (
-            <p role="alert" style={{ color: "#b91c1c" }}>
-              {error}
-            </p>
-          )}
-
-          <button type="submit" disabled={busy}>
-            {busy
-              ? "Please wait..."
-              : mode === "login"
-                ? "Sign in"
-                : "Create account"}
-          </button>
-        </form>
-
-        <p>
-          <button
-            type="button"
-            onClick={() => {
-              setError("");
-              setMode(mode === "login" ? "register" : "login");
-            }}
-          >
-            {mode === "login"
-              ? "Create a new account"
-              : "Already have an account? Sign in"}
-          </button>
-        </p>
-
-        {mode === "login" && (
+          <h1>{mode === "login" ? "Welcome back!" : "Join Vendora"}</h1>
           <p>
-            <button type="button" onClick={() => setRecovering(true)}>
-              Forgot password?
-            </button>
+            {mode === "login"
+              ? "Your business, right at your fingertips."
+              : "Let's get your business ready for better sales."}
           </p>
-        )}
-        {mode === "register" && (
-          <p>Use 8–128 characters and avoid common passwords.</p>
-        )}
-        <button type="button" onClick={onDemo}>
-          Explore demo
-        </button>
+        </header>
+
+        <main className="vendora-auth-content">
+          <div className="vendora-auth-card">
+            <h2>{mode === "login" ? "Sign in" : "Create account"}</h2>
+            <p className="vendora-auth-subtitle">
+              {mode === "login"
+                ? "Enter your details to continue."
+                : "Tell us a little about yourself and your business."}
+            </p>
+
+            {expired && (
+              <p role="status" className="vendora-auth-notice">
+                Your session has ended. Sign in again. Your offline records are
+                saved.
+              </p>
+            )}
+
+            <form onSubmit={submit} className="vendora-auth-form">
+              {mode === "register" && (
+                <label className="vendora-auth-field">
+                  <span>Full name</span>
+                  <input
+                    placeholder="Your full name"
+                    autoComplete="name"
+                    value={form.name}
+                    onChange={(e) => change("name", e.target.value)}
+                    required
+                  />
+                </label>
+              )}
+
+              <label className="vendora-auth-field">
+                <span>Phone number</span>
+                <input
+                  type="tel"
+                  placeholder="08012345678"
+                  autoComplete="tel"
+                  value={form.phone}
+                  onChange={(e) => change("phone", e.target.value)}
+                  required
+                />
+              </label>
+
+              <label className="vendora-auth-field">
+                <span>Password</span>
+                <div className="vendora-auth-password">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter your password"
+                    autoComplete={
+                      mode === "login" ? "current-password" : "new-password"
+                    }
+                    value={form.password}
+                    onChange={(e) => change("password", e.target.value)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="vendora-auth-password-toggle"
+                    onClick={() => setShowPassword((previous) => !previous)}
+                    aria-label={
+                      showPassword ? "Hide password" : "Show password"
+                    }
+                    aria-pressed={showPassword}
+                  >
+                    {showPassword ? "Hide" : "Show"}
+                  </button>
+                </div>
+              </label>
+
+              {mode === "register" && (
+                <>
+                  <label className="vendora-auth-field">
+                    <span>Business name</span>
+                    <input
+                      placeholder="Your business name"
+                      value={form.businessName}
+                      onChange={(e) => change("businessName", e.target.value)}
+                      required
+                    />
+                  </label>
+
+                  <label className="vendora-auth-field">
+                    <span>Business type</span>
+                    <select
+                      value={form.businessType}
+                      onChange={(e) => change("businessType", e.target.value)}
+                      required
+                    >
+                      <option value="" disabled>
+                        Select business type
+                      </option>
+                      {[
+                        "Foodstuff",
+                        "Provisions",
+                        "Clothing",
+                        "Phones & accessories",
+                        "Cosmetics",
+                        "Pharmacy",
+                        "Other",
+                      ].map((type) => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="vendora-auth-field">
+                    <span>City</span>
+                    <input
+                      placeholder="e.g. Lagos"
+                      value={form.city}
+                      onChange={(e) => change("city", e.target.value)}
+                      required
+                    />
+                  </label>
+
+                  <p className="vendora-auth-hint">
+                    Use 8 to 128 characters and avoid common passwords.
+                  </p>
+                </>
+              )}
+
+              {error && (
+                <p role="alert" className="vendora-auth-error">
+                  {error}
+                </p>
+              )}
+
+              {mode === "login" && (
+                <button
+                  type="button"
+                  className="vendora-auth-forgot"
+                  onClick={() => setRecovering(true)}
+                >
+                  Forgot password?
+                </button>
+              )}
+
+              <button
+                type="submit"
+                className="btn primary full"
+                disabled={busy}
+              >
+                {busy
+                  ? "Please wait..."
+                  : mode === "login"
+                    ? "Sign in"
+                    : "Create account"}
+              </button>
+            </form>
+
+            <p className="vendora-auth-switch">
+              {mode === "login"
+                ? "New to Vendora?"
+                : "Already have an account?"}{" "}
+              <button
+                type="button"
+                onClick={() => {
+                  setError("");
+                  setShowPassword(false);
+                  setMode(mode === "login" ? "register" : "login");
+                }}
+              >
+                {mode === "login" ? "Create account" : "Sign in"}
+              </button>
+            </p>
+
+            <div className="vendora-auth-divider">
+              <span>or</span>
+            </div>
+
+            <button
+              type="button"
+              className="vendora-auth-demo"
+              onClick={onDemo}
+            >
+              Explore demo
+            </button>
+          </div>
+        </main>
       </div>
     </div>
   );
 }
+
 
 export default function App() {
   const [activeScope, setActiveScope] = useState(null);
@@ -928,7 +969,7 @@ export default function App() {
               </span>
 
               <span className="vendora-account-chevron" aria-hidden="true">
-                {accountMenuOpen ? "▲" : "▼"}
+                {accountMenuOpen ? "â–²" : "â–¼"}
               </span>
             </button>
 

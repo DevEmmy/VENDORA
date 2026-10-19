@@ -748,3 +748,248 @@ input[type=range] { width: 100%; accent-color: var(--royal); height: 30px; }
   outline-offset: 2px;
   border-radius: 6px;
 }
+
+
+/* Vendora authentication */
+.vendora-auth {
+  background: var(--paper);
+}
+
+.vendora-auth-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.vendora-auth-header {
+  background: radial-gradient(
+    130% 120% at 10% 0%,
+    var(--ink-2),
+    var(--ink) 65%
+  );
+  color: #fff;
+  padding: 38px 24px 84px;
+  border-radius: 0 0 32px 32px;
+}
+
+.vendora-auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 22px;
+  font-weight: 800;
+  margin-bottom: 42px;
+}
+
+.vendora-auth-brand-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  background: var(--kola);
+  color: var(--ink);
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+}
+
+.vendora-auth-header h1 {
+  font-size: clamp(28px, 6vw, 36px);
+  font-weight: 800;
+  margin: 0 0 10px;
+  letter-spacing: -0.8px;
+}
+
+.vendora-auth-header p {
+  color: #c5d3fb;
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.vendora-auth-content {
+  width: 100%;
+  max-width: 480px;
+  margin: -48px auto 0;
+  padding: 0 16px 32px;
+  position: relative;
+}
+
+.vendora-auth-card {
+  background: var(--card);
+  border-radius: var(--r-lg);
+  box-shadow: var(--lift);
+  padding: 26px 22px;
+}
+
+.vendora-auth-card h2 {
+  font-size: 23px;
+  color: var(--ink);
+  font-weight: 800;
+  margin: 0 0 6px;
+}
+
+.vendora-auth-subtitle {
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0 0 24px;
+}
+
+.vendora-auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.vendora-auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.vendora-auth-field > span {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.vendora-auth-field > input,
+.vendora-auth-field > select,
+.vendora-auth-password {
+  width: 100%;
+  min-height: 54px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--text);
+}
+
+.vendora-auth-field > input,
+.vendora-auth-field > select {
+  padding: 0 14px;
+}
+
+.vendora-auth-field input::placeholder {
+  color: var(--text-3);
+}
+
+.vendora-auth-field > input:focus,
+.vendora-auth-field > select:focus,
+.vendora-auth-password:focus-within {
+  outline: none;
+  border-color: var(--royal-2);
+  box-shadow: 0 0 0 4px rgba(58, 114, 255, 0.12);
+}
+
+.vendora-auth-password {
+  display: flex;
+  align-items: center;
+  padding: 0 10px 0 14px;
+}
+
+.vendora-auth-password input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  padding: 14px 0;
+}
+
+.vendora-auth-password-toggle {
+  color: var(--royal);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 10px;
+}
+
+.vendora-auth-forgot {
+  align-self: flex-end;
+  color: var(--royal);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.vendora-auth-form .btn {
+  margin-top: 4px;
+}
+
+.vendora-auth-switch {
+  margin: 24px 0 0;
+  text-align: center;
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.vendora-auth-switch button {
+  color: var(--royal);
+  font-weight: 800;
+}
+
+.vendora-auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-3);
+  font-size: 12px;
+  margin: 24px 0;
+}
+
+.vendora-auth-divider::before,
+.vendora-auth-divider::after {
+  content: "";
+  height: 1px;
+  background: var(--line);
+  flex: 1;
+}
+
+.vendora-auth-demo {
+  width: 100%;
+  min-height: 52px;
+  border: 1.5px solid var(--line);
+  border-radius: 16px;
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.vendora-auth-demo:hover {
+  background: var(--royal-tint);
+}
+
+.vendora-auth-notice {
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--kola-tint);
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.vendora-auth-error {
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--pepper-tint);
+  color: #b91c1c;
+  font-size: 13px;
+}
+
+.vendora-auth-hint {
+  color: var(--text-2);
+  font-size: 12px;
+  margin: 0;
+}
+
+@media (min-width: 768px) {
+  .vendora-auth-header {
+    padding-top: 48px;
+    text-align: center;
+  }
+
+  .vendora-auth-brand {
+    justify-content: center;
+  }
+
+  .vendora-auth-content {
+    margin-top: -48px;
+  }
+}
