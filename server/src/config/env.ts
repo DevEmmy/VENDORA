@@ -12,11 +12,15 @@ const schema = z.object({
   AUTH_KEY_ID: z.string().min(1),
   AUTH_ISSUER: z.url(),
   AUTH_AUDIENCE: z.string().min(1),
+  AUTH_REFRESH_REUSE_GRACE_MS: z.coerce.number().int().min(0).max(30_000).default(10_000),
   CORS_ORIGINS: z.string().min(1),
+  PUBLIC_API_ORIGIN: z.url().optional(),
+  COOKIE_SITE_DOMAIN: z.string().regex(/^[a-z0-9]+(?:[.-][a-z0-9]+)*\.[a-z0-9-]+$/).optional(),
   COOKIE_SECURE: z.enum(["true", "false"]).default("true"),
   TRUST_PROXY: z.string().default(""),
   ENABLE_DEV_ROUTES: z.enum(["true", "false"]).default("false"),
   ENABLE_WHATSAPP: z.enum(["true", "false"]).default("false"),
+  INVENTORY_LAZY_BACKFILL: z.enum(['true', 'false']).default('false'),
   DATABASE_TLS: z.enum(["true", "false"]).default("true"),
   DATABASE_CA: z.string().optional(),
   DATABASE_CA_FILE: z.string().optional(),
@@ -47,6 +51,20 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     )
       throw new Error("Exact trusted origins required");
   }
+  const cookieTopologyWarnings: string[] = [];
+  if (c.PUBLIC_API_ORIGIN) {
+    const api = new URL(c.PUBLIC_API_ORIGIN);
+    if (api.origin !== c.PUBLIC_API_ORIGIN || !['http:', 'https:'].includes(api.protocol) ||
+      (c.NODE_ENV === 'production' && api.protocol !== 'https:')) throw new Error('PUBLIC_API_ORIGIN must be an exact HTTPS origin in production');
+    const inSite = (hostname: string) => Boolean(c.COOKIE_SITE_DOMAIN &&
+      (hostname === c.COOKIE_SITE_DOMAIN || hostname.endsWith('.' + c.COOKIE_SITE_DOMAIN)));
+    for (const origin of origins) {
+      const frontend = new URL(origin);
+      if (frontend.origin !== api.origin && (frontend.protocol !== api.protocol || !inSite(frontend.hostname) || !inSite(api.hostname)))
+        cookieTopologyWarnings.push('Strict cookies require same-site frontend/API origins. Use a frontend /api proxy or configure the shared registrable COOKIE_SITE_DOMAIN.');
+    }
+    if (c.COOKIE_SECURE === 'true' && api.protocol !== 'https:') cookieTopologyWarnings.push('Secure cookies require HTTPS at PUBLIC_API_ORIGIN.');
+  } else if (c.NODE_ENV === 'production') cookieTopologyWarnings.push('Set PUBLIC_API_ORIGIN to verify the same-site Strict-cookie deployment.');
   const database = new URL(c.DATABASE_URL);
   if (
     !["postgres:", "postgresql:"].includes(database.protocol) ||
@@ -81,6 +99,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   return {
     ...c,
     origins,
+    cookieTopologyWarnings,
     secureCookies: c.COOKIE_SECURE === "true",
     devRoutes: c.ENABLE_DEV_ROUTES === "true",
     whatsappEnabled: c.ENABLE_WHATSAPP === "true",

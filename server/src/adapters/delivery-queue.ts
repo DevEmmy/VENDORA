@@ -50,7 +50,10 @@ export function createDeliveryQueue(
     const job = await repo.transaction(async (tx) => {
       const ids = await tx.$queryRaw<
         { id: string }[]
-      >`SELECT id FROM vendora.delivery_jobs WHERE "expiresAt" > NOW() AND attempts < 5 AND ("leaseUntil" IS NULL OR "leaseUntil" < NOW()) ORDER BY "createdAt" LIMIT 1 FOR UPDATE SKIP LOCKED`;
+      // Prisma DateTime fields here are UTC timestamp WITHOUT time zone. An
+      // implicit comparison with timestamptz NOW() expires jobs an hour early
+      // on a Lagos database connection. Normalize the database clock explicitly.
+      >`SELECT id FROM vendora.delivery_jobs WHERE "expiresAt" > (NOW() AT TIME ZONE 'UTC') AND attempts < 5 AND ("leaseUntil" IS NULL OR "leaseUntil" < (NOW() AT TIME ZONE 'UTC')) ORDER BY "createdAt" LIMIT 1 FOR UPDATE SKIP LOCKED`;
       if (!ids[0]) return null;
       return tx.deliveryJob.update({
         where: { id: ids[0].id },

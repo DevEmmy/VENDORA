@@ -1,0 +1,245 @@
+Captured 2026-10-15 (Africa/Lagos)
+Command: cd server; node --import tsx scripts/phase1-check.ts --auth
+All money values below are integer kobo.
+The auth suite below passed during an earlier run whose wrapper later needed
+Windows shutdown fixes. The final successful Phase 1 run, including cleanup,
+is captured after that suite output.
+
+PASS fresh migrate deploy + repeated deploy
+PASS down + up; six ledger tables restored and auth retained
+PASS seed twice via Prisma: 10 products, 6 customers, 14 sales, 2 repayments, 7 expenses
+PASS unrelated business inventory unchanged
+PASS seed identity collision rejected without deleting ledger data
+a) Sales and expenses (integer kobo)
+[
+  {
+    "period": "today",
+    "sales_kobo": "150000",
+    "expenses_kobo": "100000"
+  },
+  {
+    "period": "last_7_days",
+    "sales_kobo": "5600000",
+    "expenses_kobo": "910000"
+  }
+]
+b) Outstanding debt per customer (integer kobo)
+[
+  {
+    "name": "Chinedu Okafor",
+    "owed_kobo": "540000"
+  },
+  {
+    "name": "Bisi Adeyemi",
+    "owed_kobo": "220000"
+  },
+  {
+    "name": "Musa Ibrahim",
+    "owed_kobo": "90000"
+  },
+  {
+    "name": "Amina Bello",
+    "owed_kobo": "15000"
+  }
+]
+c) Low stock
+[
+  {
+    "name": "Indomie Chicken 70g",
+    "stock_qty": 3,
+    "low_stock_at": 5
+  },
+  {
+    "name": "Peak Milk 170g",
+    "stock_qty": 2,
+    "low_stock_at": 5
+  }
+]
+d) Top 3 by quantity this week (Monday, Africa/Lagos)
+[
+  {
+    "name": "Dangote Sugar 500g",
+    "quantity": "4"
+  },
+  {
+    "name": "Gino Tomato Paste 70g",
+    "quantity": "4"
+  },
+  {
+    "name": "Mama Gold Rice 1kg",
+    "quantity": "4"
+  }
+]
+e) Fuzzy product search: indomi
+[
+  {
+    "name": "Indomie Chicken 70g",
+    "unit_price_kobo": "15000",
+    "similarity": "0.286"
+  }
+]
+PASS overpaid sale: PostgreSQL 23514
+PASS negative stock: PostgreSQL 23514
+PASS zero quantity: PostgreSQL 23514
+PASS negative amount_paid: PostgreSQL 23514
+PASS zero repayment: PostgreSQL 23514
+PASS zero expense: PostgreSQL 23514
+PASS negative unit price: PostgreSQL 23514
+PASS cross-business customer: PostgreSQL 23503
+PASS cross-business sale item: PostgreSQL 23503
+PASS cross-business repayment: PostgreSQL 23503
+PASS cross-business product: PostgreSQL 23503
+PASS referenced product deletion: PostgreSQL 23001
+PASS referenced business deletion: PostgreSQL 23001
+PASS bigint > 32-bit and sale deletion cascades to items/payments
+Running existing authentication integration suite on a separate UTF-8 database
+TAP version 13
+# Subtest: PostgreSQL migrations, credentials, session races, ownership and webhook processing
+    # Subtest: registration activates accounts immediately and duplicate signup is rejected
+    ok 1 - registration activates accounts immediately and duplicate signup is rejected
+      ---
+      duration_ms: 1244.7838
+      type: 'test'
+      ...
+    # Subtest: existing shop conflicts roll back registration without claiming ownership
+    ok 2 - existing shop conflicts roll back registration without claiming ownership
+      ---
+      duration_ms: 65.1856
+      type: 'test'
+      ...
+    # Subtest: refresh replay commits revocation and concurrent refresh has one winner
+    ok 3 - refresh replay commits revocation and concurrent refresh has one winner
+      ---
+      duration_ms: 181.4175
+      type: 'test'
+      ...
+    # Subtest: recovery atomically consumes its credential and revokes every session
+    ok 4 - recovery atomically consumes its credential and revokes every session
+      ---
+      duration_ms: 306.0796
+      type: 'test'
+      ...
+    # Subtest: HTTP cookies, durable snapshots/submissions and signed webhook deduplication
+    ok 5 - HTTP cookies, durable snapshots/submissions and signed webhook deduplication
+      ---
+      duration_ms: 824.7966
+      type: 'test'
+      ...
+    # Subtest: runtime role has no DDL or audit modification permissions
+    ok 6 - runtime role has no DDL or audit modification permissions
+      ---
+      duration_ms: 116.3311
+      type: 'test'
+      ...
+    1..6
+ok 1 - PostgreSQL migrations, credentials, session races, ownership and webhook processing
+  ---
+  duration_ms: 7210.2829
+  type: 'test'
+  ...
+# Subtest: Redis limiter is shared across independent backend clients
+ok 2 - Redis limiter is shared across independent backend clients # SKIP
+  ---
+  duration_ms: 0.3805
+  type: 'test'
+  ...
+1..2
+# tests 8
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 1
+# todo 0
+# duration_ms 16229.1629
+
+Final run (exit code 0): node --import tsx scripts/phase1-check.ts
+PASS fresh migrate deploy + repeated deploy
+PASS down + up; six ledger tables restored and auth retained
+PASS seed twice via Prisma: 10 products, 6 customers, 14 sales, 2 repayments, 7 expenses
+PASS unrelated business inventory unchanged
+PASS seed identity collision rejected without deleting ledger data
+a) Sales and expenses (integer kobo)
+[
+  {
+    "period": "today",
+    "sales_kobo": "150000",
+    "expenses_kobo": "100000"
+  },
+  {
+    "period": "last_7_days",
+    "sales_kobo": "5600000",
+    "expenses_kobo": "910000"
+  }
+]
+b) Outstanding debt per customer (integer kobo)
+[
+  {
+    "name": "Chinedu Okafor",
+    "owed_kobo": "540000"
+  },
+  {
+    "name": "Bisi Adeyemi",
+    "owed_kobo": "220000"
+  },
+  {
+    "name": "Musa Ibrahim",
+    "owed_kobo": "90000"
+  },
+  {
+    "name": "Amina Bello",
+    "owed_kobo": "15000"
+  }
+]
+c) Low stock
+[
+  {
+    "name": "Indomie Chicken 70g",
+    "stock_qty": 3,
+    "low_stock_at": 5
+  },
+  {
+    "name": "Peak Milk 170g",
+    "stock_qty": 2,
+    "low_stock_at": 5
+  }
+]
+d) Top 3 by quantity this week (Monday, Africa/Lagos)
+[
+  {
+    "name": "Dangote Sugar 500g",
+    "quantity": "4"
+  },
+  {
+    "name": "Gino Tomato Paste 70g",
+    "quantity": "4"
+  },
+  {
+    "name": "Mama Gold Rice 1kg",
+    "quantity": "4"
+  }
+]
+e) Fuzzy product search: indomi
+[
+  {
+    "name": "Indomie Chicken 70g",
+    "unit_price_kobo": "15000",
+    "similarity": "0.286"
+  }
+]
+PASS overpaid sale: PostgreSQL 23514
+PASS negative stock: PostgreSQL 23514
+PASS zero quantity: PostgreSQL 23514
+PASS negative amount_paid: PostgreSQL 23514
+PASS zero repayment: PostgreSQL 23514
+PASS zero expense: PostgreSQL 23514
+PASS negative unit price: PostgreSQL 23514
+PASS cross-business customer: PostgreSQL 23503
+PASS cross-business sale item: PostgreSQL 23503
+PASS cross-business repayment: PostgreSQL 23503
+PASS cross-business product: PostgreSQL 23503
+PASS referenced product deletion: PostgreSQL 23001
+PASS referenced business deletion: PostgreSQL 23001
+PASS bigint > 32-bit and sale deletion cascades to items/payments
+Stopping isolated PostgreSQL (allowing up to 120 seconds for its checkpoint)
+PASS isolated PostgreSQL stopped

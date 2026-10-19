@@ -13,6 +13,7 @@ import type { Recovery } from "../services/recovery.service";
 import type { Sessions } from "../services/session.service";
 import { digest } from "../services/token.service";
 import { safeBusiness, safeUser } from "../types/auth";
+import { lazyInventoryBackfill } from '../services/lazy-inventory-backfill';
 
 function parse<T>(schema: z.ZodType<T>, req: Request): T {
   const result = schema.safeParse(req.body);
@@ -78,7 +79,8 @@ export function createAuthRoutes(deps: {
         res.locals.requestId,
       );
       policy.set(res, result.access, result.refresh, result.session.expiresAt);
-      res.json({ user: safeUser(result.user) });
+      const inventoryMigrations = await lazyInventoryBackfill(repo, result.user.id, config.INVENTORY_LAZY_BACKFILL === 'true');
+      res.json({ user: safeUser(result.user), inventoryMigrations });
     }),
   );
   // Refresh independently validates its binding, including replay, inside the transaction.

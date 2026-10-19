@@ -55,17 +55,19 @@ export default function Assistant({ autoListen }) {
       else if (autoListen && support !== 'ok') setHelp(VOICE_HELP[support]);
     })();
     return () => { on = false; ctl.current?.stop(); };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // Run the initial listening request once.
 
-  function submit(t, viaVoice = false) {
+  async function submit(t, viaVoice = false) {
     const msg = (t ?? text).trim();
     if (!msg) return;
     primeSpeech();
     haptic(10);
-    const { reply } = sendChat(msg, viaVoice);
+    try {
+    const { reply } = await sendChat(msg, viaVoice);
     setText(''); setPartial('');
     const pr = getState().profile;
     if (pr.speakReplies) speak(reply, pr.language);
+    } catch (error) { setHelp(error.message); }
   }
 
   function start() {
@@ -109,7 +111,9 @@ export default function Assistant({ autoListen }) {
               {!m.fromUser && recorded && (
                 <div style={{ marginTop: 8, display: 'flex', gap: 12, alignItems: 'center' }}>
                   {reversed ? <span className="small">Undone, kept in records</span>
-                    : <button className="link" style={{ padding: 0, fontSize: 13.5 }} onClick={() => m.txnIds.forEach(id => reverseTxn(id, 'Undone in chat'))}><Undo2 size={14} style={{ verticalAlign: -2 }} /> Undo</button>}
+                    : <button className="link" style={{ padding: 0, fontSize: 13.5 }} onClick={async () => { try {
+                      for (const id of m.txnIds) await reverseTxn(id, 'Undone in chat');
+                    } catch (error) { setHelp(error.message); } }}><Undo2 size={14} style={{ verticalAlign: -2 }} /> Undo</button>}
                   <span className="small" style={{ marginLeft: 'auto' }}>{clock(m.at)}</span>
                 </div>
               )}

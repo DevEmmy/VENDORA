@@ -9,11 +9,24 @@
     "dev": "nodemon",
     "generate": "prisma generate",
     "typecheck": "prisma generate && tsc --noEmit && tsc -p tsconfig.tests.json",
+    "lint": "node scripts/lint.mjs",
     "build": "prisma generate && tsc",
     "test": "tsx --test test/*.test.ts test/*.test.js",
     "test:integration": "tsx --test --test-force-exit test/integration/*.test.ts",
+    "test:integration:isolated": "tsx scripts/test-database.ts integration",
+    "test:reproductions": "tsx --test --test-force-exit test/reproductions/*.test.ts",
+    "test:browser": "npm --prefix ../web run build && playwright test",
+    "db:test:migrate": "tsx scripts/test-database.ts migrate",
+    "db:test:reset": "tsx scripts/test-database.ts reset",
     "db:deploy": "prisma migrate deploy",
-    "db:dev": "prisma migrate dev"
+    "inventory:backfill": "tsx scripts/inventory-backfill.ts",
+    "smoke:cookies": "tsx scripts/cookie-smoke.ts",
+    "db:dev": "prisma migrate dev",
+    "phase1:check": "tsx scripts/phase1-check.ts",
+    "phase1:seed": "tsx scripts/phase1-seed.ts",
+    "phase1:verify": "tsx scripts/phase1-verify.ts",
+    "phase1:down": "tsx scripts/phase1-down.ts",
+    "phase1:constraints": "tsx scripts/phase1-constraints.ts"
   },
   "engines": {
     "node": ">=22.12 <23 || >=24 <25"
@@ -38,12 +51,16 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@babel/eslint-parser": "^7.29.9",
+    "@playwright/test": "^1.64.1",
     "@types/cookie-parser": "1.4.10",
     "@types/cors": "2.8.19",
     "@types/express": "4.17.25",
     "@types/node": "22.20.5",
     "@types/pg": "8.23.1",
     "embedded-postgres": "18.4.0-beta.17",
+    "eslint": "^9.39.5",
+    "globals": "^17.13.0",
     "nodemon": "^3.1.14",
     "prisma": "7.10.0",
     "tsx": "4.23.15",

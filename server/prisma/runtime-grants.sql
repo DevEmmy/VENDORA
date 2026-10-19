@@ -10,5 +10,9 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA vendora TO vendora_
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA vendora TO vendora_runtime;
 REVOKE ALL ON vendora.auth_audit_events FROM vendora_runtime;
 GRANT INSERT ON vendora.auth_audit_events TO vendora_runtime;
+REVOKE UPDATE, DELETE ON vendora.stock_movements, vendora.sync_changes FROM vendora_runtime;
+GRANT SELECT, INSERT ON vendora.stock_movements, vendora.sync_changes TO vendora_runtime;
+REVOKE UPDATE, DELETE ON vendora.inventory_operations FROM vendora_runtime;
+GRANT SELECT, INSERT ON vendora.inventory_operations TO vendora_runtime;
 -- Re-run this reviewed grant script after migrations add tables. No default DDL
 -- or Supabase auth/storage grants are granted to the runtime role.

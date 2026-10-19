@@ -3,7 +3,8 @@
 //     getUserMedia so the browser shows its permission prompt at the right moment, then start recognition.
 // OUT: speechSynthesis. Phones only allow sound after a tap, so primeSpeech() is called on the first tap.
 import { LANGUAGES } from './i18n.js';
-import { TTS_URL, API_KEY, YARNGPT_KEY, YARNGPT_VOICE } from './config.js';
+import { TTS_URL, YARNGPT_KEY, YARNGPT_VOICE } from './config.js';
+import { apiRequest } from './api/client.js';
 
 const SR = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
 
@@ -129,9 +130,7 @@ let current = null;
 let yarnDown = 0; // after a failure, use the phone voice for a while instead of waiting each time
 async function yarnUrl(text) {
   if (TTS_URL) {
-    const r = await fetch(TTS_URL.replace(/\/$/, '') + '/api/tts', { method: 'POST', headers: { 'content-type': 'application/json', ...(API_KEY ? { 'x-vendora-key': API_KEY } : {}) }, body: JSON.stringify({ text }) });
-    if (!r.ok) throw new Error('tts ' + r.status);
-    return (await r.json()).url;
+    return (await apiRequest('/api/tts', { method: 'POST', body: { text }, baseUrl: TTS_URL })).url;
   }
   if (YARNGPT_KEY) {
     const body = { text, voice: YARNGPT_VOICE, output_format: 'mp3' };

@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { Search, Minus, Banknote, Landmark, BookUser, Coins, CheckCircle2, Mic, Share2, Plus, ScanLine, FileText, Package } from 'lucide-react';
-import { useStore, Top, Sheet, Field, Empty, SearchBar } from '../components/ui.jsx';
+import { useStore, useOnline, Top, Sheet, Field, Empty, SearchBar } from '../components/ui.jsx';
 import { useNav } from '../App.jsx';
-import { completeSale, requestPayment, reverseTxn } from '../lib/store.js';
+import { completeSale, requestPayment, reverseTxn, toast } from '../lib/store.js';
 import { naira, qtyUnit } from '../lib/format.js';
 import { haptic } from '../lib/voice.js';
 import { qtySold } from '../lib/insights.js';
@@ -12,6 +12,7 @@ import ProductArt from '../components/ProductArt.jsx';
 
 export default function Sell() {
   const s = useStore();
+  const online = useOnline();
   const { go } = useNav();
   const [cart, setCart] = useState({});
   const [q, setQ] = useState('');
@@ -27,7 +28,7 @@ export default function Sell() {
   const count = lines.reduce((a, l) => a + l.qty, 0);
   const total = lines.reduce((a, l) => a + l.qty * l.price, 0);
 
-  const add = p => { if ((cart[p.id] || 0) >= p.qty) { haptic(40); return; } haptic(10); setCart(c => ({ ...c, [p.id]: (c[p.id] || 0) + 1 })); };
+  const add = p => { if (online && (cart[p.id] || 0) >= p.qty) { haptic(40); return; } haptic(10); setCart(c => ({ ...c, [p.id]: (c[p.id] || 0) + 1 })); };
   const remove = p => { haptic(8); setCart(c => ({ ...c, [p.id]: Math.max(0, (c[p.id] || 0) - 1) })); };
 
   return (
@@ -47,7 +48,7 @@ export default function Sell() {
               const top = i < 3 && !q && (sold[p.id]?.qty || 0) > 0;
               return (
                 <div key={p.id} className={'ptile' + (n ? ' in-cart' : '') + (p.qty <= 0 ? ' out' : '')}>
-                  <button className="ptile-main" onClick={() => add(p)} disabled={p.qty <= 0} aria-label={`Add ${p.name}`}>
+                  <button className="ptile-main" onClick={() => add(p)} disabled={online && p.qty <= 0} aria-label={`Add ${p.name}`}>
                     <span className="ptile-img">
                       <ProductArt product={p} rounded={0} />
                       {top && <span className="ribbon">Best seller</span>}
@@ -60,13 +61,14 @@ export default function Sell() {
                     </span>
                   </button>
                   <div className="ptile-foot">
-                    {p.qty <= 0 ? <span className="pill pepper">Out of stock</span> : n === 0 ? <>
+                    {p.qty <= 0 && online ? <span className="pill pepper">Out of stock</span> : n === 0 ? <>
                       <span className="small">{qtyUnit(p.qty, p.unit)} in stock</span>
                       <button type="button" className="add-dot" onClick={() => add(p)} aria-label={`Add ${p.name} to sale`}><Plus size={18} strokeWidth={2.6} /></button>
                     </> : (
                       <div className="qty">
                         <button onClick={() => remove(p)} aria-label={`Remove one ${p.name}`}><Minus size={16} strokeWidth={2.6} /></button>
-                        <b>{n}</b>
+                        <input type="number" min="0" step="0.001" aria-label={`Quantity of ${p.name}`} value={n}
+                          style={{ width: 64, textAlign: 'center' }} onChange={event => setCart(value => ({ ...value, [p.id]: Math.max(0, Number(event.target.value) || 0) }))} />
                         <button onClick={() => add(p)} aria-label={`One more ${p.name}`}><Plus size={16} strokeWidth={2.6} /></button>
                       </div>
                     )}
@@ -120,9 +122,13 @@ function Checkout({ lines, total, onClose, onDone }) {
       catch (e) { setErr(e.message); } finally { setBusy(false); }
       return;
     }
-    const r = completeSale({ items, customer, method, paidNow: part });
-    haptic([20, 40, 20]);
-    onDone({ ...r, method, customer: customer?.name, lines });
+    setBusy(true);
+    try {
+      const r = await completeSale({ items, customer, method, paidNow: part });
+      haptic([20, 40, 20]);
+      onDone({ ...r, method, customer: customer?.name, lines });
+    } catch (error) { setErr(error.message); }
+    finally { setBusy(false); }
   }
 
   return (
@@ -181,7 +187,10 @@ function SaleDone({ r, onClose }) {
         <button className="btn primary grow" onClick={onClose}>Next sale</button>
       </div>
       {inv && <button className="btn plain full" style={{ marginTop: 10 }} onClick={() => { onClose(); go('invoices', { open: inv.id }); }}><FileText size={18} />View invoice {inv.invoiceNo}</button>}
-      <button className="link" style={{ display: 'block', margin: '10px auto 0' }} onClick={() => { r.txnIds.forEach(id => reverseTxn(id, 'Cancelled at the till')); onClose(); }}>Cancel this sale</button>
+      <button className="link" style={{ display: 'block', margin: '10px auto 0' }} onClick={async () => {
+        try { for (const id of r.txnIds) await reverseTxn(id, 'Cancelled at the till'); onClose(); }
+        catch (error) { toast(error.message, 'bad'); }
+      }}>Cancel this sale</button>
     </Sheet>
   );
 }

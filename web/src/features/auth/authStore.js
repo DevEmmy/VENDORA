@@ -1,5 +1,6 @@
 
 import { create } from 'zustand';
+import { setBusinessContextResolver } from '../../lib/api/client.js';
 
 const initialSession = {
   status: 'loading',
@@ -55,4 +56,10 @@ export const useAuthStore = create((set, get) => ({
   resetSession: () => {
     set(initialSession);
   },
+
+  expireSession: () => {
+    set({ status: get().user ? 'expired' : 'guest' });
+  },
 }));
+
+setBusinessContextResolver(() => useAuthStore.getState().selectedBusinessId);

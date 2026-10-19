@@ -3,7 +3,8 @@
 The server uses strict TypeScript, Prisma 7/PostgreSQL, Redis throttling,
 Argon2id passwords, RS256 access cookies, rotating opaque refresh cookies,
 database sessions and server-issued memberships. Signup creates an active account and shop
-immediately; phone OTP and CSRF token exchange are removed for the hackathon.
+immediately without phone verification. CSRF protection uses JSON plus trusted
+Origin/Fetch Metadata checks rather than a token exchange.
 Credentials never appear in response JSON. The frontend signup/login integration
 is described in [frontend-auth.md](frontend-auth.md).
 
@@ -87,7 +88,11 @@ proof in the fragment; the future recovery UI must avoid third-party scripts,
 set `Referrer-Policy: no-referrer`, and submit the proof in the POST body. Reset
 consumes one digest, changes the password/auth version and revokes sessions in
 one transaction, without automatic login. Passwords preserve spaces and Unicode,
-accept 6-128 code points, and require no external password screening service.
+require 8-128 code points for new credentials and reject a local common-password
+denylist without sending passwords to an external screening service. Existing
+short passwords still log in. Profile exposes password change and the sign-in
+screen explains verified-destination recovery; enrollment and a hosted reset
+form remain follow-up work.
 Benchmark Argon2id and its
 concurrency budget on deployment hardware.
 
@@ -124,7 +129,11 @@ Use `GET /api/auth/me` to read your identity, `POST /api/auth/refresh {}` to ref
 and `POST /api/auth/logout {}` to log out. Browser fetch calls need
 `credentials: "include"`; Postman needs its cookie jar enabled. No CSRF endpoint,
 pre-auth cookie, OTP request or `X-CSRF-Token` header is needed. Mutations accept
-JSON, allow API clients without `Origin`, and reject supplied untrusted origins.
+JSON and reject supplied untrusted origins. Cookie-bearing mutations must send
+a trusted Origin or Sec-Fetch-Site same-origin/same-site header, including from
+Postman/non-browser clients. Anonymous idempotent logout remains available.
+See [deployment and cookie smoke checks](auth-deployment.md) for same-site API
+subdomains, proxy configuration and startup diagnostics.
 The `/logout-all`, `/password/forgot`, `/password/reset`, `/password/change` and
 `/reauthenticate` endpoints remain available. Password recovery still requires an
 enrolled recovery channel; it does not reset accounts using a phone number alone.
@@ -135,8 +144,18 @@ Explicit local `COOKIE_SECURE=false` uses different development names.
 Access lasts five minutes, idle sessions 30 minutes, and absolute sessions seven
 days. Refresh does not extend idle/absolute expiry. Meaningful private activity
 extends idle expiry up to the absolute deadline. Logout can use the refresh cookie after access expiry, and anonymous logout
-is idempotent. Concurrent refresh has one winner and
-revokes the family on reuse; serialize refresh across requests/tabs. Logout-all requires an active session. Reauthenticate checks the password
+is idempotent. AUTH_REFRESH_REUSE_GRACE_MS defaults to 10000 (maximum 30000;
+0 disables grace). Only the immediately previous credential may be retried
+inside that window, and only while its direct successor remains unconsumed and
+the session remains valid. Such a retry returns the same successor. Older
+ancestors or reuse outside the window revoke the family. The trade-off is a
+short window during which a stolen previous credential is still usable.
+Successors are derived with a domain-separated HMAC key from the existing
+DELIVERY_ENCRYPTION_KEY; replicas must share that secret. Rotating it can reject
+retries of a previous credential from the former key during the grace window;
+unconsumed current credentials continue to rotate normally. The database still
+stores only refresh digests, not plaintext credentials. The browser serializes
+refresh across requests/tabs. Logout-all requires an active session. Reauthenticate checks the password
 and does not grant a second factor. Password change requires the current password
 and forces fresh login. Auth/private responses are not cacheable.
 
@@ -164,8 +183,10 @@ The verified owner enables WhatsApp with `POST /api/whatsapp/link {}` and
 recent authentication. Meta POST authentication verifies `X-Hub-Signature-256`
 over the raw body using `WA_APP_SECRET`; GET verification uses `WA_VERIFY_TOKEN`.
 Configure both together. Events are durably deduplicated by message ID before
-acknowledgment. Workers update the snapshot, create the sync entry, enqueue a
-reply and mark the event processed transactionally. Suspended users/inactive
+acknowledgment. For SNAPSHOT shops, workers update the snapshot, create the sync
+entry, enqueue a reply and mark the event processed transactionally. RELATIONAL
+shops receive an instruction to use the app; the rollback snapshot is immutable.
+Suspended users/inactive
 memberships cannot write through the channel. Audio is saved as `voice_pending`
 for confirmation; production transcription is not enabled.
 

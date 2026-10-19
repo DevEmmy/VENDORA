@@ -1,6 +1,6 @@
-export const naira = n => '₦' + Math.round(Number(n) || 0).toLocaleString('en-NG');
+export const naira = n => '₦' + (Number(n) || 0).toLocaleString('en-NG', { maximumFractionDigits: 2 });
 export const nairaShort = n => { n = Number(n) || 0; return n >= 1e6 ? '₦' + (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'm' : n >= 1e4 ? '₦' + Math.round(n / 1e3) + 'k' : naira(n); };
-export const fmtQty = q => (Number.isInteger(q) ? String(q) : Number(q).toFixed(1));
+export const fmtQty = q => Number(q).toLocaleString('en-NG', { maximumFractionDigits: 3 });
 export function qtyUnit(q, unit) {
   if (!unit) return fmtQty(q);
   const plural = q === 1 ? unit : (unit.endsWith('x') ? unit + 'es' : unit === 'kg' ? unit : unit + 's');
@@ -19,5 +19,5 @@ export function timeAgo(t, now = Date.now()) {
 }
 export const clock = t => new Date(t).toLocaleTimeString('en-NG', { hour: 'numeric', minute: '2-digit' });
 export const dateLabel = t => new Date(t).toLocaleDateString('en-NG', { weekday: 'long', day: 'numeric', month: 'long' });
-export const uid = p => `${p}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+export const uid = p => ['p', 't', 'c'].includes(p) && globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${p}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 export function greeting(h = new Date().getHours()) { return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; }

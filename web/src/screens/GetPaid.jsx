@@ -56,7 +56,7 @@ export function PaymentRequestView({ pr, onDone }) {
   const paid = !!credit || (sale && sale.payStatus === 'verified');
   useEffect(() => {
     QRCode.toDataURL(`Wema Bank\n${pr.virtualAccountNumber}\n${s.profile.accountName}\nNGN ${pr.amount}`, { margin: 1, width: 320 }).then(setQr).catch(() => {});
-  }, [pr]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pr]);
   const copy = () => { navigator.clipboard?.writeText(pr.virtualAccountNumber).then(() => toast('Account number copied.')).catch(() => {}); };
   const share = encodeURIComponent(`Please pay ${naira(pr.amount)} to\nWema Bank\n${pr.virtualAccountNumber}\n${s.profile.accountName}`);
 

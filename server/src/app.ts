@@ -13,6 +13,9 @@ import type { AuthRepository } from "./repositories/auth.repository";
 import { createAuthRoutes } from "./routes/auth.routes";
 import { businessGuard } from "./routes/business.routes";
 import { snapshotRoutes } from "./routes/snapshot.routes";
+import { inventoryRoutes } from "./routes/inventory.routes";
+import { salesRoutes } from "./routes/sales.routes";
+import { syncRoutes } from './routes/sync.routes';
 import { webhookRoutes } from "./routes/webhook.routes";
 import { AuthService } from "./services/auth.service";
 import { Authorization } from "./services/authorization.service";
@@ -54,6 +57,12 @@ export function createApp(deps: AppDependencies) {
     next();
   });
   app.use(helmet());
+  app.use(["/api", "/wema", "/whatsapp/dev"], (_req, res, next) => {
+    // Apply before authentication/rate limiting so error responses are private too.
+    res.set("Cache-Control", "no-store");
+    res.vary("Cookie");
+    next();
+  });
   if (!config.whatsappEnabled) {
     app.use("/whatsapp", (_req, res) => res.status(404).json({ error: "WhatsApp is disabled" }));
     app.use("/api/whatsapp", (_req, res) => res.status(404).json({ error: "WhatsApp is disabled" }));
@@ -82,13 +91,14 @@ export function createApp(deps: AppDependencies) {
     cors({
       origin: config.origins,
       credentials: true,
-      methods: ["GET", "POST", "PUT", "OPTIONS"],
+      methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       allowedHeaders: ["Content-Type", "X-Business-ID"],
+      exposedHeaders: ['X-Request-ID', 'Vary'],
       maxAge: 600,
     }),
   );
   app.use(cookieParser());
-  const sessions = new Sessions(repo, tokens);
+  const sessions = new Sessions(repo, tokens, config.AUTH_REFRESH_REUSE_GRACE_MS);
   const auth = new AuthService(repo, passwords, sessions);
   const recovery = new Recovery(repo, passwords, delivery);
   const { router, guards } = createAuthRoutes({
@@ -123,6 +133,9 @@ export function createApp(deps: AppDependencies) {
       : next(),
   );
   app.use("/wema", wema.router);
+  app.use(inventoryRoutes(repo));
+  app.use(salesRoutes(repo));
+  app.use(syncRoutes(repo));
   app.use(snapshotRoutes(repo, store));
   app.use(legacy.business(store));
   if (config.devRoutes && wa) {

@@ -1,5 +1,6 @@
 import {
   createHash,
+  createHmac,
   randomBytes,
   randomUUID,
   timingSafeEqual,
@@ -16,6 +17,10 @@ export function equal(a: string, b: string) {
   return aa.length === bb.length && timingSafeEqual(aa, bb);
 }
 export async function createTokens(config: Config) {
+  // Domain-separated derivation lets replicas return the identical successor
+  // during a short retry window without storing recoverable refresh secrets.
+  const refreshKey = createHmac("sha256", Buffer.from(config.DELIVERY_ENCRYPTION_KEY, "base64"))
+    .update("vendora/refresh-rotation-key/v1").digest();
   const { importPKCS8, importSPKI, SignJWT, jwtVerify } = await import("jose");
   const privateKey = await importPKCS8(
     config.AUTH_PRIVATE_KEY.replace(/\\n/g, "\n"),
@@ -32,6 +37,9 @@ export async function createTokens(config: Config) {
     { algorithms: ["RS256"] },
   );
   return {
+    successor(refresh: string) {
+      return createHmac("sha256", refreshKey).update(refresh).digest("base64url");
+    },
     async sign(userId: string, sessionId: string) {
       return new SignJWT({ sid: sessionId })
         .setProtectedHeader({

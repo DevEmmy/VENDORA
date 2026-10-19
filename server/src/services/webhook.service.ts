@@ -44,7 +44,11 @@ export function createWebhookWorker(
         const snapshot = await tx.businessSnapshot.findUnique({
           where: { businessId: business.id },
         });
-        if (member && snapshot) {
+        const current = await tx.business.findUniqueOrThrow({ where: { id: business.id }, select: { inventoryMode: true } });
+        if (member && current.inventoryMode === 'RELATIONAL') {
+          await queue.enqueue('whatsapp-reply', m.from,
+            'This shop now uses Vendora inventory sync. Open the Vendora app to record or check stock. This message has not recorded a sale.', tx);
+        } else if (member && snapshot) {
           const state = z.record(z.string(), z.unknown()).parse(snapshot.state);
           const op =
             m.type === "text" && m.text

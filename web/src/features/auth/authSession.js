@@ -1,5 +1,8 @@
 import { authApi } from './authApi.js';
 import { useAuthStore } from './authStore.js';
+import { onSessionExpired } from '../../lib/api/client.js';
+
+onSessionExpired(() => useAuthStore.getState().expireSession());
 
 let restorePromise = null;
 
@@ -22,7 +25,7 @@ export function restoreSession() {
       return session;
     } catch (error) {
       if (error?.status === 401 || error?.status === 403) {
-        useAuthStore.getState().setGuest();
+        useAuthStore.getState().expireSession();
         return null;
       }
 

@@ -6,6 +6,8 @@ export class HttpError extends Error {
   constructor(
     public status: number,
     message: string,
+    public code?: string,
+    public details?: Record<string, unknown>,
   ) {
     super(message);
   }
@@ -43,5 +45,7 @@ export const errorHandler: ErrorRequestHandler = (
           ? "Invalid JSON"
           : "Service unavailable",
     requestId: res.locals.requestId,
+    ...(error instanceof HttpError && error.code ? { code: error.code } : {}),
+    ...(error instanceof HttpError && error.details ? { details: error.details } : {}),
   });
 };

@@ -5,6 +5,7 @@ import { useNav } from '../App.jsx';
 import { updateProfile, resetAll, loadDemo, isOwner, currentStaff, toast } from '../lib/store.js';
 import { LANGUAGES, langLabel } from '../lib/i18n.js';
 import { fmtCoord } from '../lib/device.js';
+import { useAuthStore } from '../features/auth/authStore.js';
 
 export default function Profile() {
   const s = useStore();
@@ -15,6 +16,7 @@ export default function Profile() {
   const [reset, setReset] = useState(false);
   const owner = isOwner(s);
   const me = currentStaff(s);
+  const authenticated = useAuthStore(state => state.status === 'authenticated');
 
   const Row = ({ icon: Icon, tone = 'ink', label, sub, onClick, right }) => (
     <button className="item" onClick={onClick}>
@@ -64,6 +66,7 @@ export default function Profile() {
 
         <div className="h2">Settings</div>
         <div className="list">
+          {authenticated && <Row icon={ShieldCheck} label="Change password" sub="Signs out every device; keeps local records" onClick={() => go('password')} />}
           <Row icon={Mic} label="Permissions" sub="Microphone, sound, location, camera" onClick={() => go('permissions')} />
           <Row icon={Languages} label="Language" sub={langLabel(p.language)} onClick={() => setLang(true)} />
           <Switch icon={Volume2} label="Speak replies out loud" on={p.speakReplies} set={v => updateProfile({ speakReplies: v })} />

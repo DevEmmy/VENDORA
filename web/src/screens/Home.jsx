@@ -8,6 +8,7 @@ import { naira, nairaShort, greeting, timeAgo, qtyUnit } from '../lib/format.js'
 import { currentStaff, integrity, businessScoreNow } from '../lib/store.js';
 import { offersFor } from '../lib/hub.js';
 import { TxnRow } from './Wallet.jsx';
+import StockAlerts from '../features/inventory/StockAlerts.jsx';
 
 export default function Home() {
   const s = useStore();
@@ -79,6 +80,7 @@ export default function Home() {
       </header>
 
       <div className="wrap over">
+        <StockAlerts />
         <button className="card" style={{ width: '100%', textAlign: 'left' }} onClick={() => go('insights')}>
           <div className="row between">
             <span className="muted" style={{ fontWeight: 700, fontSize: 14 }}>Sales today</span>

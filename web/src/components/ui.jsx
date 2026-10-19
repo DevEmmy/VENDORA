@@ -75,7 +75,7 @@ export function Toasts() {
   useEffect(() => {
     const timers = alerts.map(a => setTimeout(() => dismissAlert(a.id), Math.max(400, 2800 - (Date.now() - a.at))));
     return () => timers.forEach(clearTimeout);
-  }, [ids]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ids]); // Rebuild timers when the alert IDs change.
   return (
     <div className="toasts" aria-live="polite">
       {alerts.slice(-1).map(a => <div key={a.id} className={'toast ' + (a.tone || '')}>{a.tone === 'good' && <CheckCircle2 size={20} />}{a.text}</div>)}

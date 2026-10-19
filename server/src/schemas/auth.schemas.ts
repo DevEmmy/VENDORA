@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { passwordProblem } from '../services/password-policy';
 export const phone = z
   .string()
   .max(20)
@@ -12,8 +13,8 @@ export const credential = z.string().min(1).max(512);
 export const password = z
   .string()
   .refine(
-    (value) => [...value].length >= 6 && [...value].length <= 128,
-    "Password must contain 6-128 characters",
+    (value) => passwordProblem(value) === null,
+    "Use 8–128 characters and avoid common passwords",
   );
 export const schemas = {
   register: z.object({

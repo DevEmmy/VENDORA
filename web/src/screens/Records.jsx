@@ -24,7 +24,7 @@ export default function Records() {
     let on = true;
     if (s.ledgerKey) verifySignatures(s.ledger, s.ledgerKey.publicJwk).then(r => on && setSig(r)).catch(() => {});
     return () => { on = false; };
-  }, [s.ledger.length, s.ledgerKey, s.ledger.filter(e => e.sig).length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [s.ledger.length, s.ledgerKey, s.ledger.filter(e => e.sig).length]);
 
   function download() {
     const rows = [['date', 'type', 'details', 'amount', 'paid', 'customer', 'proof', 'cancelled']];

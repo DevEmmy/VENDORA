@@ -50,7 +50,7 @@ function List({ openId }) {
   const [from, to] = PERIODS[period][1]();
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
   const invs = useMemo(() => s.txns.filter(t => t.type === 'sale' && t.at >= from && t.at < to).map(t => invoiceFor(s, t))
-    .filter(i => words.every(w => `${i.no} ${i.customer} ${i.items.map(x => x.name).join(' ')}`.toLowerCase().includes(w))), [s.txns, s.ledger, period, q]); // eslint-disable-line react-hooks/exhaustive-deps
+    .filter(i => words.every(w => `${i.no} ${i.customer} ${i.items.map(x => x.name).join(' ')}`.toLowerCase().includes(w))), [s.txns, s.ledger, period, q]);
   const live = invs.filter(i => !i.cancelled);
   const total = live.reduce((a, i) => a + i.total, 0);
   const owed = live.reduce((a, i) => a + i.balance, 0);

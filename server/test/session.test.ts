@@ -80,9 +80,9 @@ test("Argon2id preserves whitespace and Unicode without truncation", async () =>
   assert(!(await passwords.verify(undefined, password)));
 });
 
-test("password validation accepts simple passwords without network access", async () => {
+test("password validation accepts long passphrases without network access", async () => {
   const passwords = new Passwords();
-  await passwords.validate("secret");
+  await passwords.validate("market river 2026");
   await passwords.validate("a".repeat(128));
   await assert.rejects(passwords.validate("short"));
   await assert.rejects(passwords.validate("a".repeat(129)));
