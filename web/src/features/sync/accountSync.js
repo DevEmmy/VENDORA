@@ -1,6 +1,6 @@
 import { apiRequest } from '../../lib/api/client.js';
 import { getActiveReplicaScope, publishReplica, reportSyncFailure } from '../../lib/store.js';
-import { createSyncEngine } from './outbox.js';
+import { createSyncEngine, mergeChange } from './outbox.js';
 import { replicaRepository, replicaScope } from './replicaRepository.js';
 import { prepareOperation, acceptOperation, projectReplica } from './domain.js';
 import { bootstrapLegacy } from './bootstrap.js';
@@ -54,6 +54,16 @@ export function startAccountSync({ userId, businessId }) {
     await replicaRepository.update(scope, state => { for (const operation of state.outbox) if (operation.status === 'pending') operation.nextAttemptAt = 0; });
     return engine.sync();
   }, retry: id => engine.retry(id),
+    async acceptVoiceResult(result) {
+      const state = await replicaRepository.update(scope, replica => {
+        for (const product of result.products || []) mergeChange(replica, { entity: 'product', data: product });
+        for (const movement of result.movements || []) mergeChange(replica, { entity: 'movement', data: movement });
+        projectReplica(replica);
+      });
+      if (!stopped && getActiveReplicaScope() === scope) publishReplica(scope, state);
+      channel?.postMessage({ scope });
+      void refresh();
+    },
     async acknowledgeMigrationWarning() {
       const state = await replicaRepository.update(scope, replica => { replica.migrationWarning = null; });
       publishReplica(scope, state); await engine.sync();

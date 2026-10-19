@@ -7,6 +7,8 @@ import { listen, voiceSupport, VOICE_HELP, speak, haptic, primeSpeech } from '..
 import { LANGUAGES, langLabel } from '../lib/i18n.js';
 import { clock } from '../lib/format.js';
 import { permissionState, requestMic } from '../lib/device.js';
+import { useAuthStore } from '../features/auth/authStore.js';
+import VoiceWorkspace from '../features/voice/VoiceWorkspace.jsx';
 
 const SUGGEST = {
   en: ['I sold 2 bags of rice', 'Emeka paid 5000', 'How much did I sell today?', 'Which items are running low?', 'Who is owing me?', 'I bought 10 cartons of Indomie'],
@@ -16,7 +18,14 @@ const SUGGEST = {
   ha: ['Na sayar da shinkafa biyu', 'Nawa na sayar yau?'],
 };
 
-export default function Assistant({ autoListen }) {
+export default function Assistant(props) {
+  const status = useAuthStore(state => state.status);
+  const businessId = useAuthStore(state => state.selectedBusinessId);
+  const userId = useAuthStore(state => state.user?.id);
+  return status === 'authenticated' ? <VoiceWorkspace key={`${userId}:${businessId}`} businessId={businessId} /> : <LegacyAssistant {...props} />;
+}
+
+function LegacyAssistant({ autoListen }) {
   const s = useStore();
   const { back, go } = useNav();
   const lang = s.profile.language;

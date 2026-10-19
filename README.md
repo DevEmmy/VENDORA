@@ -101,6 +101,12 @@ Legacy banking/balance history is retained and reported, not fully reconstructed
 
 ## Privacy and limits
 
+Phase 2 adds authenticated [voice inventory](docs/voice.md): YarnGPT recording,
+LLM parsing, review/clarification, explicit atomic confirmation and history.
+For a keyless, self-contained local demo, install dependencies in `server` and
+`web`, then run `npm run voice:demo` in `server`. Normal server startup now
+requires voice keys/model or `VOICE_MOCK_MODE=true` in `server/.env`.
+
 The service worker caches only public shell/hashed assets fetched without
 credentials. It never caches `/api`, banking paths, mutations or private/no-store
 responses. Activation deletes every old cache and claims clients; account

@@ -1,0 +1,18 @@
+[
+  {
+    "language": "yo",
+    "transcript": "Iṣu méjì ni mo tà",
+    "gloss": "It is two yams I sold.",
+    "source": "https://revue-sinzang.net/wp-content/uploads/journal/published_paper/volume-1/issue-1/mgZsK2Ay.pdf",
+    "source_location": "Oluwole Tewogboye OKEWANDE, Volume 1 Issue 1, December 2023, printed page 24, example 25(b). Spacing and combining accents normalized; underscore gloss separators omitted.",
+    "action": "sale", "product_phrase": "iṣu", "quantity": 2, "unit": "piece"
+  },
+  {
+    "language": "ig",
+    "transcript": "anyị rere otu oche",
+    "gloss": "We sold one chair.",
+    "source": "https://files.eric.ed.gov/fulltext/ED233567.pdf",
+    "source_location": "B. F. and W. E. Welmers, Igbo, Peace Corps 1964, printed page 42, Drill 2. Adapted to modern Unicode orthography without teaching tone marks; the scan's OCR is unreliable. Review the scan/native speaker before extending this fixture.",
+    "action": "sale", "product_phrase": "oche", "quantity": 1, "unit": "piece"
+  }
+]

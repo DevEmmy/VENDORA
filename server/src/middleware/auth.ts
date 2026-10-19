@@ -21,7 +21,8 @@ export function createGuards(
     const carriesSession = Boolean(cookie(req, policy.names.access) || cookie(req, policy.names.refresh));
     if (carriesSession && !source && !['same-origin', 'same-site'].includes(req.get('sec-fetch-site') || ''))
       return next(new HttpError(403, 'Trusted request origin required'));
-    if (!req.is("application/json"))
+    const voiceUpload = req.method === 'POST' && req.originalUrl.split('?')[0]?.toLowerCase().replace(/\/+$/, '') === '/api/voice/commands' && req.is('multipart/form-data');
+    if (!req.is("application/json") && !voiceUpload)
       return next(new HttpError(415, "JSON required"));
     next();
   };

@@ -16,6 +16,9 @@ import { snapshotRoutes } from "./routes/snapshot.routes";
 import { inventoryRoutes } from "./routes/inventory.routes";
 import { salesRoutes } from "./routes/sales.routes";
 import { syncRoutes } from './routes/sync.routes';
+import { voiceRoutes } from './routes/voice.routes';
+import type { VoiceService } from './voice/service';
+import type { StreamingSpeechProvider } from './voice/live';
 import { webhookRoutes } from "./routes/webhook.routes";
 import { AuthService } from "./services/auth.service";
 import { Authorization } from "./services/authorization.service";
@@ -32,6 +35,8 @@ export interface AppDependencies {
   tokens: Tokens;
   delivery: Delivery;
   store?: LegacyStore;
+  voice?: VoiceService;
+  voiceStream?: StreamingSpeechProvider;
 }
 export function createApp(deps: AppDependencies) {
   const { config, repo, limiter, passwords, tokens, delivery } = deps;
@@ -82,7 +87,9 @@ export function createApp(deps: AppDependencies) {
   app.get("/health", (_req, res) => res.json({ ok: true }));
   app.use(
     asyncRoute(async (req, _res, next) => {
-      await limiter.take(`all:${req.ip}`, 120, 60);
+      // Live PCM posts have their own authenticated per-user limit in voiceRoutes.
+      const audio = req.method === 'POST' && /^\/api\/voice\/streams\/[0-9a-f-]+\/audio$/i.test(req.path);
+      await limiter.take(`${audio ? 'live-audio' : 'all'}:${req.ip}`, audio ? 1200 : 120, 60);
       next();
     }),
   );
@@ -92,7 +99,7 @@ export function createApp(deps: AppDependencies) {
       origin: config.origins,
       credentials: true,
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-      allowedHeaders: ["Content-Type", "X-Business-ID"],
+      allowedHeaders: ["Content-Type", "X-Business-ID", ...(config.VOICE_MOCK_MODE === 'true' ? ['X-Mock-Transcript'] : [])],
       exposedHeaders: ['X-Request-ID', 'Vary'],
       maxAge: 600,
     }),
@@ -136,6 +143,7 @@ export function createApp(deps: AppDependencies) {
   app.use(inventoryRoutes(repo));
   app.use(salesRoutes(repo));
   app.use(syncRoutes(repo));
+  app.use(voiceRoutes(repo, config, limiter, deps.voice, deps.voiceStream));
   app.use(snapshotRoutes(repo, store));
   app.use(legacy.business(store));
   if (config.devRoutes && wa) {

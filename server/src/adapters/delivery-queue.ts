@@ -6,6 +6,7 @@ import type {
   Transaction,
 } from "../repositories/auth.repository";
 import type { Delivery } from "./delivery";
+import type { DeliveryJob } from '../generated/prisma/client';
 
 export function createDeliveryQueue(
   repo: AuthRepository,
@@ -47,23 +48,20 @@ export function createDeliveryQueue(
       enqueue("whatsapp-reply", destination, text),
   };
   async function drain() {
-    const job = await repo.transaction(async (tx) => {
-      const ids = await tx.$queryRaw<
-        { id: string }[]
-      // Prisma DateTime fields here are UTC timestamp WITHOUT time zone. An
-      // implicit comparison with timestamptz NOW() expires jobs an hour early
-      // on a Lagos database connection. Normalize the database clock explicitly.
-      >`SELECT id FROM vendora.delivery_jobs WHERE "expiresAt" > (NOW() AT TIME ZONE 'UTC') AND attempts < 5 AND ("leaseUntil" IS NULL OR "leaseUntil" < (NOW() AT TIME ZONE 'UTC')) ORDER BY "createdAt" LIMIT 1 FOR UPDATE SKIP LOCKED`;
-      if (!ids[0]) return null;
-      return tx.deliveryJob.update({
-        where: { id: ids[0].id },
-        data: {
-          leaseUntil: new Date(Date.now() + 60_000),
-          attempts: { increment: 1 },
-        },
-      });
-    });
-    if (!job) return;
+    // One atomic statement claims a job; no interactive BEGIN/SELECT/UPDATE/
+    // COMMIT round trips for a remote database. SKIP LOCKED preserves safe claims.
+    // These legacy timestamp columns store UTC without a time zone.
+    const [job] = await repo.db.$queryRaw<DeliveryJob[]>`
+      UPDATE vendora.delivery_jobs
+      SET "leaseUntil" = (NOW() AT TIME ZONE 'UTC') + INTERVAL '60 seconds', attempts = attempts + 1
+      WHERE id = (
+        SELECT id FROM vendora.delivery_jobs
+        WHERE "expiresAt" > (NOW() AT TIME ZONE 'UTC') AND attempts < 5
+          AND ("leaseUntil" IS NULL OR "leaseUntil" < (NOW() AT TIME ZONE 'UTC'))
+        ORDER BY "createdAt" LIMIT 1 FOR UPDATE SKIP LOCKED
+      )
+      RETURNING id, ciphertext, "expiresAt", "leaseUntil", attempts, "createdAt"`;
+    if (!job) return false;
     const buffer = Buffer.from(job.ciphertext, "base64");
     const decipher = createDecipheriv(
       "aes-256-gcm",
@@ -99,6 +97,7 @@ export function createDeliveryQueue(
     }
     else await provider.notify(payload.destination);
     await repo.db.deliveryJob.delete({ where: { id: job.id } });
+    return true;
   }
   return { delivery, drain, enqueue };
 }
