@@ -18,6 +18,10 @@ import {
 } from "lucide-react";
 
 import { useStore, Toasts } from "./components/ui.jsx";
+import { SERVER_URL } from "./lib/config.js";
+
+// No server configured (e.g. GitHub Pages only): Vendora runs fully on the phone, no sign-in step.
+const LOCAL_ONLY = !SERVER_URL;
 
 import {
   loadDemo,
@@ -450,11 +454,11 @@ export default function App() {
     };
   }, [accountMenuOpen]);
   const [demoMode, setDemoMode] = useState(
-    () => sessionStorage.getItem("vendora:demo-mode") === "true",
+    () => LOCAL_ONLY || sessionStorage.getItem("vendora:demo-mode") === "true",
   );
 
   useEffect(() => {
-    restoreSession();
+    if (!LOCAL_ONLY) restoreSession();
   }, []);
 
   useEffect(() => {
@@ -767,7 +771,7 @@ export default function App() {
 
         {onb === "account" && <OpenAccount back={() => setOnb("perms")} onComplete={() => setDemoWelcome(false)} />}
 
-        {demoMode && (
+        {demoMode && !LOCAL_ONLY && (
           <div className="vendora-demo-exit-wrap">
             <button
               type="button"
@@ -909,6 +913,7 @@ export default function App() {
 
                 <button
                   type="button"
+                  hidden={LOCAL_ONLY}
                   className="vendora-account-signout"
                   disabled={loggingOut}
                   onClick={() => {
