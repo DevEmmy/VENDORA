@@ -2,13 +2,17 @@ import { emptyReplica } from './outbox.js';
 
 export const replicaScope = (userId, businessId) => `${encodeURIComponent(userId)}:${encodeURIComponent(businessId)}`;
 
-export function createReplicaRepository(factory = globalThis.indexedDB) {
+export function createReplicaRepository(factory = globalThis.indexedDB, dbName = 'vendora-replicas') {
   let connection;
   function open() {
     if (!connection) connection = new Promise((resolve, reject) => {
       if (!factory) return reject(new Error('This browser cannot save offline records. Enable browser storage before recording.'));
-      const request = factory.open('vendora-replicas', 1);
-      request.onupgradeneeded = () => request.result.createObjectStore('accounts');
+      const request = factory.open(dbName, 1);
+      request.onupgradeneeded = () => {
+        if (!request.result.objectStoreNames.contains('accounts')) {
+          request.result.createObjectStore('accounts');
+        }
+      };
       request.onerror = () => { connection = null; reject(request.error); };
       request.onblocked = () => { connection = null; reject(new Error('Close older Vendora tabs to open offline storage.')); };
       request.onsuccess = () => {
@@ -27,7 +31,16 @@ export function createReplicaRepository(factory = globalThis.indexedDB) {
       const request = store.get(scope);
       let result, problem;
       request.onsuccess = () => {
-        result = request.result || emptyReplica();
+        const raw = request.result;
+        if (raw && (raw._encrypted === true || raw._migrationEnvelope === true)) {
+          problem = Object.assign(
+            new Error(`Account record for ${scope} is encrypted. Legacy plaintext access is forbidden.`),
+            { code: 'ENCRYPTED_ACCOUNT_RECORD' }
+          );
+          tx.abort();
+          return;
+        }
+        result = raw || emptyReplica();
         try { if (change) { change(result); store.put(result, scope); } }
         catch (error) { problem = error; tx.abort(); }
       };

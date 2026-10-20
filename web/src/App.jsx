@@ -39,6 +39,23 @@ import {
   getActiveSync,
 } from "./features/sync/accountSync.js";
 import SyncStatus from "./features/sync/SyncStatus.jsx";
+import {
+  getLastEnrolledAccount,
+  recordOnlineVerification,
+  isEnrolledForOfflineAccess,
+  unlockOfflineAccess,
+} from "./features/security/offlineEnrollment.js";
+import { replicaScope } from "./features/sync/replicaRepository.js";
+import { encryptedReplicaRepository } from "./features/security/encryptedReplicaRepository.js";
+import {
+  isOfflineSessionActive,
+  getOfflineSessionState,
+  subscribeOfflineSession,
+  checkSessionExpiry,
+  clearOfflineSession,
+} from "./features/security/offlineSession.js";
+import OfflineUnlockScreen from "./screens/OfflineUnlockScreen.jsx";
+import AuthBanner from "./components/AuthBanner.jsx";
 
 import Welcome from "./screens/Welcome.jsx";
 import Setup from "./screens/Setup.jsx";
@@ -230,6 +247,21 @@ function AuthScreen({ onDemo, expired = false }) {
         throw new Error("Unable to verify your session.");
       }
 
+      const defaultBizId = session.memberships?.[0]?.businessId;
+      if (defaultBizId && isEnrolledForOfflineAccess(session.user.id, defaultBizId)) {
+        try {
+          const { accountKey } = await unlockOfflineAccess({
+            userId: session.user.id,
+            businessId: defaultBizId,
+            password: form.password,
+          });
+          const scope = replicaScope(session.user.id, defaultBizId);
+          encryptedReplicaRepository.setAccountKey(scope, accountKey);
+        } catch {
+          // If unwrap fails, online locked storage will handle it.
+        }
+      }
+
       useAuthStore.getState().setSession({
         user: session.user,
         memberships: session.memberships || [],
@@ -245,9 +277,13 @@ function AuthScreen({ onDemo, expired = false }) {
     return <PasswordRecovery onBack={() => setRecovering(false)} />;
 
   return (
-    <div className="device onboarding vendora-auth">
-      <div className="vendora-auth-scroll">
-        <header className="vendora-auth-header">
+    <div className="device onboarding vendora-auth-layout">
+      {/* Desktop Brand Banner */}
+      <AuthBanner />
+
+      {/* Form Column */}
+      <div className="vendora-auth-form-column">
+        <div className="vendora-auth-mobile-header">
           <div className="vendora-auth-brand">
             <span className="vendora-auth-brand-icon" aria-hidden="true">
               V
@@ -261,10 +297,14 @@ function AuthScreen({ onDemo, expired = false }) {
               ? "Your business, right at your fingertips."
               : "Let's get your business ready for better sales."}
           </p>
-        </header>
+        </div>
 
-        <main className="vendora-auth-content">
-          <div className="vendora-auth-card">
+        <div className="vendora-auth-card-container">
+          <div
+            className={`vendora-auth-card ${
+              mode === "register" ? "vendora-auth-card-register" : ""
+            }`}
+          >
             <h2>{mode === "login" ? "Sign in" : "Create account"}</h2>
             <p className="vendora-auth-subtitle">
               {mode === "login"
@@ -443,7 +483,7 @@ function AuthScreen({ onDemo, expired = false }) {
               Explore demo
             </button>
           </div>
-        </main>
+        </div>
       </div>
     </div>
   );
@@ -452,6 +492,8 @@ function AuthScreen({ onDemo, expired = false }) {
 
 export default function App() {
   const [activeScope, setActiveScope] = useState(null);
+  const [offlineSession, setOfflineSession] = useState(getOfflineSessionState);
+  useEffect(() => subscribeOfflineSession(setOfflineSession), []);
 
   const storeState = useStore();
   const creditAlert =
@@ -463,6 +505,7 @@ export default function App() {
   const [loggingOut, setLoggingOut] = useState(false);
   const [authError, setAuthError] = useState("");
   const [scopeError, setScopeError] = useState("");
+  const [storageLocked, setStorageLocked] = useState(false);
   const [pendingLogout, setPendingLogout] = useState(false);
   const [tab, setTab] = useState("home");
   const [tabParams, setTabParams] = useState({});
@@ -523,24 +566,45 @@ export default function App() {
 
   useEffect(() => {
     restoreSession();
+    const handleOnline = () => {
+      restoreSession();
+    };
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
   }, []);
 
   useEffect(() => {
     void clearPrivateCaches();
   }, [user?.id, selectedBusinessId]);
 
+  useEffect(() => {
+    if (offlineSession.status !== "unlocked") return;
+    const interval = setInterval(() => {
+      checkSessionExpiry();
+    }, 60 * 1000);
+    return () => clearInterval(interval);
+  }, [offlineSession.status]);
+
   const expectedScope =
     authStatus === "authenticated" && user?.id && selectedBusinessId
       ? `account:${user.id}:${selectedBusinessId}`
+      : offlineSession.status === "unlocked" &&
+        offlineSession.userId &&
+        offlineSession.businessId
+      ? `account:${offlineSession.userId}:${offlineSession.businessId}`
       : demoMode
         ? "demo"
         : null;
   useEffect(() => {
     setActiveScope(null);
     setScopeError("");
+    setStorageLocked(false);
     let cancelled = false;
 
     if (authStatus === "authenticated" && user?.id && selectedBusinessId) {
+      if (isOfflineSessionActive()) {
+        clearOfflineSession();
+      }
       const isMember = memberships.some(
         (m) => m.businessId === selectedBusinessId,
       );
@@ -562,15 +626,27 @@ export default function App() {
             onboarded: true,
             demo: false,
           });
+          recordOnlineVerification(user.id, selectedBusinessId);
           setActiveScope(`account:${user.id}:${selectedBusinessId}`);
         })
         .catch((error) => {
-          if (!cancelled) setScopeError(error.message);
+          if (cancelled) return;
+          if (
+            error?.name === "StorageLockedError" ||
+            error?.message?.includes("is locked") ||
+            error?.message?.includes("locked")
+          ) {
+            setStorageLocked(true);
+          } else {
+            setScopeError(error.message);
+          }
         });
       return () => {
         cancelled = true;
       };
     }
+
+    if (isOfflineSessionActive()) return;
 
     deactivateAccount();
 
@@ -707,11 +783,16 @@ export default function App() {
         }
       }
       setPendingLogout(false);
-      await authApi.logout();
+      try {
+        await authApi.logout();
+      } catch {
+        // Offline or unreachable
+      }
 
       await clearPrivateCaches();
 
       deactivateAccount();
+      clearOfflineSession();
       useAuthStore.getState().setGuest();
       setDemoMode(false);
       setActiveScope(null);
@@ -731,7 +812,34 @@ export default function App() {
     );
   }
 
-  if (authStatus === "unavailable" && !demoMode) {
+  if (offlineSession.status === "lock_expired" && !demoMode) {
+    return (
+      <StatusScreen
+        title="Offline access expired"
+        message="Your 7-day offline access period has expired. Your existing sales and business records remain safely encrypted on this device. Please connect to the internet and sign in to renew access."
+        action={logout}
+        actionLabel="Sign in online"
+      />
+    );
+  }
+
+  if (authStatus === "unavailable" && !demoMode && offlineSession.status !== "unlocked") {
+    const enrolled = getLastEnrolledAccount();
+    if (enrolled) {
+      return (
+        <OfflineUnlockScreen
+          onDemo={() => {
+            activateDemo();
+            setOnb("welcome");
+            setDemoWelcome(true);
+            setDemoMode(true);
+          }}
+          onUnlocked={({ userId, businessId }) => {
+            setActiveScope(`account:${userId}:${businessId}`);
+          }}
+        />
+      );
+    }
     return (
       <div className="device onboarding">
         <div
@@ -795,6 +903,52 @@ export default function App() {
     );
   }
 
+  if (authStatus === "authenticated" && storageLocked) {
+    const membership = memberships.find(
+      (item) => item.businessId === selectedBusinessId,
+    );
+    return (
+      <OfflineUnlockScreen
+        isOnline={true}
+        accountInfo={{
+          userId: user.id,
+          businessId: selectedBusinessId,
+          businessName:
+            membership?.business?.businessName ||
+            storeState.profile?.businessName ||
+            "Your Business",
+          userName: user.name || user.phone || "Account Holder",
+          phone: user.phone || "",
+        }}
+        onSignOut={logout}
+        memberships={memberships}
+        onSwitchBusiness={(bizId) => {
+          useAuthStore.getState().switchBusiness(bizId);
+          setStorageLocked(false);
+        }}
+        onUnlocked={({ userId, businessId }) => {
+          const scope = `account:${userId}:${businessId}`;
+          const business = memberships.find(
+            (item) => item.businessId === businessId,
+          )?.business;
+          updateProfile({
+            name: user.name || "",
+            phone: user.phone || "",
+            businessName: business?.businessName || "",
+            businessType: business?.businessType || "",
+            city: business?.city || "",
+            onboarded: true,
+            demo: false,
+          });
+          recordOnlineVerification(userId, businessId);
+          setStorageLocked(false);
+          setScopeError("");
+          setActiveScope(scope);
+        }}
+      />
+    );
+  }
+
   if (!ready) {
     return (
       <StatusScreen
@@ -822,7 +976,7 @@ export default function App() {
       );
     }
   }
-  if (authStatus !== "authenticated" && (demoWelcome || !onboarded)) {
+  if (authStatus !== "authenticated" && !isOfflineSessionActive() && (demoWelcome || !onboarded)) {
     return (
       <div className="device onboarding">
         {onb === "welcome" && (
@@ -953,7 +1107,9 @@ export default function App() {
               <span className="vendora-account-avatar">
                 {authStatus === "authenticated"
                   ? (user?.name || user?.email || "A").charAt(0).toUpperCase()
-                  : "D"}
+                  : isOfflineSessionActive()
+                    ? (storeState.profile?.name || "O").charAt(0).toUpperCase()
+                    : "D"}
               </span>
 
               <span className="vendora-account-trigger-text">
@@ -963,9 +1119,11 @@ export default function App() {
                         (membership) =>
                           membership.businessId === selectedBusinessId,
                       )?.business?.name || "My business"
-                    : "Demo account"}
+                    : isOfflineSessionActive()
+                      ? storeState.profile?.businessName || "Offline Store"
+                      : "Demo account"}
                 </strong>
-                <small>Account settings</small>
+                <small>{isOfflineSessionActive() ? "Offline session" : "Account settings"}</small>
               </span>
 
               <span className="vendora-account-chevron" aria-hidden="true">
@@ -1020,7 +1178,7 @@ export default function App() {
                   onClick={() => {
                     setAccountMenuOpen(false);
 
-                    if (authStatus === "authenticated") {
+                    if (authStatus === "authenticated" || isOfflineSessionActive()) {
                       logout();
                     } else {
                       deactivateAccount();
@@ -1032,7 +1190,9 @@ export default function App() {
                     ? loggingOut
                       ? "Signing out..."
                       : "Sign out"
-                    : "Exit demo"}
+                    : isOfflineSessionActive()
+                      ? "Lock account"
+                      : "Exit demo"}
                 </button>
               </div>
             )}
@@ -1041,6 +1201,20 @@ export default function App() {
 
         <main className="main">
           {authStatus === "authenticated" && <SyncStatus />}
+          {isOfflineSessionActive() && (
+            <aside
+              aria-label="Offline session status"
+              style={{
+                padding: "8px 16px",
+                background: "#e8f0fe",
+                borderBottom: "1px solid #cce0ff",
+                fontSize: 13,
+                color: "#1a73e8",
+              }}
+            >
+              <span>Offline session &bull; Local changes will sync once reconnected.</span>
+            </aside>
+          )}
           {authError && <p role="alert">{authError}</p>}
 
           {Page ? (
