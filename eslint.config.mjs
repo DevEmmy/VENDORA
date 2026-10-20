@@ -7,6 +7,7 @@ const globals = (await import(pathToFileURL(resolve.resolve('globals')).href)).d
 const parser = (await import(pathToFileURL(resolve.resolve('@babel/eslint-parser')).href)).default;
 
 export default [
+  { files: ['web/public/voice-pcm-worklet.js'], languageOptions: { globals: { AudioWorkletProcessor: 'readonly', sampleRate: 'readonly', registerProcessor: 'readonly' } } },
   { ignores: ['**/node_modules/**', '**/dist/**', '**/generated/**', '**/test-results/**', '**/playwright-report/**', 'web/public/ocr/**'] },
   {
     files: ['eslint.config.mjs', 'server/**/*.{js,mjs,ts}', 'web/**/*.{js,jsx}'],

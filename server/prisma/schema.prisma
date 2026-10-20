@@ -487,3 +487,26 @@ model Notification {
   @@map("notifications")
   @@schema("vendora")
 }
+
+model VoiceLog {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  createdById String @map("created_by_id") @db.Uuid
+  transcript String @default("")
+  parsed Json @default("{}")
+  confidence Float @default(0)
+  status String @default("processing")
+  asrJobId String? @map("asr_job_id")
+  audioSeconds Decimal? @map("audio_seconds")
+  latencyMs Int? @map("latency_ms")
+  errorCode String? @map("error_code")
+  candidates Json @default("[]")
+  readbackText String? @map("readback_text")
+  movementId String? @map("movement_id") @db.Uuid
+  result Json?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  @@index([businessId, createdAt(sort: Desc), id(sort: Desc)], map: "voice_logs_business_cursor")
+  @@map("voice_logs")
+  @@schema("vendora")
+}

@@ -11,6 +11,8 @@ import { createTokens } from "./services/token.service";
 import { createWebhookWorker } from "./services/webhook.service";
 import { logAvailability } from "./services/audit.service";
 import { startupHint, type StartupStage } from "./services/startup-diagnostics";
+import { VoiceService } from './voice/service';
+import { createBackgroundJobs } from './services/background-jobs';
 
 let startupStage: StartupStage = "configuration";
 
@@ -33,6 +35,8 @@ async function main() {
     await client.ping();
     startupStage = "application";
     const repo = new AuthRepository(db);
+    const voice = new VoiceService(db, config);
+    await voice.initialize();
     const queue = createDeliveryQueue(repo, config, createDelivery(config));
     const processWebhook = config.whatsappEnabled
       ? createWebhookWorker(repo, queue)
@@ -44,6 +48,7 @@ async function main() {
       passwords: new Passwords(),
       tokens,
       delivery: queue.delivery,
+      voice,
     });
     startupStage = "HTTP listener";
     const server = app.listen(config.PORT);
@@ -56,25 +61,15 @@ async function main() {
     console.log(`Vendora listening on port ${config.PORT}`);
     // Legacy channel timers require a single worker; no uncoordinated replica-local flush loop.
     let stopping = false;
-    let draining: Promise<void> | undefined;
+    const background = createBackgroundJobs(config, {
+      processWebhook,
+      deliver: () => queue.drain(),
+      onError: (operation, error) => logAvailability('worker-unavailable', undefined, {
+        operation, hint: startupHint(operation === 'message-delivery' ? 'delivery' : 'database', error),
+      }),
+    });
     const jobs = setInterval(() => {
-      if (!draining && !stopping)
-        draining = processWebhook()
-          .catch((error: unknown) => {
-            logAvailability("worker-unavailable", undefined, {
-              operation: "webhook-processing",
-              hint: startupHint("database", error),
-            });
-          })
-          .then(() => queue.drain().catch((error: unknown) => {
-            logAvailability("worker-unavailable", undefined, {
-              operation: "message-delivery",
-              hint: startupHint("delivery", error),
-            });
-          }))
-          .finally(() => {
-            draining = undefined;
-          });
+      if (!stopping) background.tick();
     }, 1000);
     jobs.unref();
     const maintenance = setInterval(() => {
@@ -106,7 +101,7 @@ async function main() {
       const deadline = setTimeout(() => process.exit(1), 10_000);
       deadline.unref();
       await new Promise<void>((resolve) => server.close(() => resolve()));
-      await draining;
+      await background.finish();
       await db.$disconnect();
       if (client.isOpen) await client.quit();
       clearTimeout(deadline);

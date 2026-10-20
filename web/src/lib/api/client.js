@@ -82,15 +82,16 @@ function coordinateRefresh(callback) {
   return fallbackLock(callback);
 }
 
-async function send(path, { method = 'GET', body, signal, businessId, baseUrl: targetBase = baseUrl } = {}) {
+async function send(path, { method = 'GET', body, signal, businessId, responseType = 'json', baseUrl: targetBase = baseUrl } = {}) {
   const headers = { Accept: 'application/json' };
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  const multipart = typeof FormData !== 'undefined' && body instanceof FormData;
+  if (body !== undefined && !multipart) headers['Content-Type'] = 'application/json';
   if (businessId) headers['X-Business-ID'] = businessId;
   let response;
   try {
     response = await fetch(`${targetBase.replace(/\/$/, '')}${path}`, {
       method, credentials: 'include', headers, signal,
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      ...(body !== undefined ? { body: multipart ? body : JSON.stringify(body) } : {}),
     });
   } catch (error) {
     if (error?.name === 'AbortError' || error?.name === 'TimeoutError') throw error;
@@ -105,7 +106,7 @@ async function send(path, { method = 'GET', body, signal, businessId, baseUrl: t
     error.details = data?.details ?? null;
     throw error;
   }
-  return response.status === 204 ? null : response.json();
+  return response.status === 204 ? null : responseType === 'stream' ? response.body : responseType === 'blob' ? response.blob() : response.json();
 }
 
 async function refreshSession() {

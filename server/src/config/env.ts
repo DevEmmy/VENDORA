@@ -1,8 +1,9 @@
 import { z } from "zod";
+import { voiceSchema, validateVoice } from './voice';
 
 const positive = (fallback: number) =>
   z.coerce.number().int().positive().default(fallback);
-const schema = z.object({
+const schema = voiceSchema.extend({
   NODE_ENV: z.enum(["development", "test", "production"]),
   PORT: positive(8080),
   DATABASE_URL: z.url(),
@@ -25,6 +26,8 @@ const schema = z.object({
   DATABASE_CA: z.string().optional(),
   DATABASE_CA_FILE: z.string().optional(),
   DATABASE_POOL_MAX: positive(5),
+  DATABASE_TRANSACTION_MAX_WAIT_MS: positive(15000),
+  DATABASE_TRANSACTION_TIMEOUT_MS: positive(20000),
   WA_APP_SECRET: z.string().min(32).optional(),
   WA_VERIFY_TOKEN: z.string().min(16).optional(),
   DELIVERY_URL: z.url().optional(),
@@ -39,6 +42,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     Object.fromEntries(Object.entries(env).filter(([, value]) => value !== "")),
   );
   const origins = c.CORS_ORIGINS.split(",").map((s) => s.trim());
+  validateVoice(c);
   if (c.DATABASE_CA && c.DATABASE_CA_FILE) throw new Error("Choose DATABASE_CA or DATABASE_CA_FILE");
   for (const origin of origins) {
     const url = new URL(origin);

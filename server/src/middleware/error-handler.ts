@@ -1,6 +1,7 @@
 import type { ErrorRequestHandler, RequestHandler } from "express";
 import { ZodError } from "zod";
 import { logAvailability } from "../services/audit.service";
+import { startupHint } from '../services/startup-diagnostics';
 
 export class HttpError extends Error {
   constructor(
@@ -36,7 +37,9 @@ export const errorHandler: ErrorRequestHandler = (
         : error instanceof SyntaxError || error instanceof ZodError
           ? 400
           : 503;
-  if (status === 503) logAvailability("request-unavailable", res.locals.requestId);
+  if (status === 503) logAvailability("request-unavailable", res.locals.requestId, {
+    operation: 'http-request', hint: startupHint('application', error),
+  });
   res.status(status).json({
     error:
       error instanceof HttpError

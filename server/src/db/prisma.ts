@@ -20,5 +20,10 @@ export function createDatabase(config: Config) {
           }
         : false,
   });
-  return new PrismaClient({ adapter });
+  return new PrismaClient({ adapter, transactionOptions: {
+    // Hosted connections can take longer than Prisma's default 2-second wait
+    // when a pool slot is cold or occupied. Bound the wait without retrying writes.
+    maxWait: config.DATABASE_TRANSACTION_MAX_WAIT_MS,
+    timeout: config.DATABASE_TRANSACTION_TIMEOUT_MS,
+  } });
 }
