@@ -32,7 +32,11 @@ jobs:
       - run: npm run build
         env:
           # Optional. Set in Settings > Secrets and variables > Actions.
-          VITE_TTS_URL: ${{ vars.VENDORA_SERVER_URL }}
+          # No server for now: the app runs fully on the phone. When a server is back, set the
+          # VENDORA_API_URL repo variable (login, sync) and VENDORA_VOICE_URL (YarnGPT voice).
+          VITE_SERVER_URL: ${{ vars.VENDORA_API_URL }}
+          VITE_LOCAL_ONLY: ${{ vars.VENDORA_API_URL == '' && 'true' || 'false' }}
+          VITE_TTS_URL: ${{ vars.VENDORA_VOICE_URL }}
           VITE_YARNGPT_VOICE: ${{ vars.YARNGPT_VOICE }}
           # Demo only: this puts the YarnGPT key inside the public website. Prefer VENDORA_SERVER_URL.
           VITE_YARNGPT_KEY: ${{ secrets.YARNGPT_DEMO_KEY }}

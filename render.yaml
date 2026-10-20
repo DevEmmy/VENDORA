@@ -1,24 +1,16 @@
-# One-click deploy on Render (free plan): the Vendora website and the Vendora server.
-# The server holds the YarnGPT key so the website never exposes it.
+# Vendora on Render: the website and the API server.
+# Login cookies are SameSite=Strict, so the website must forward /api, /wema and /whatsapp to the server
+# (one public address). Add those rewrite rules on the vendora-app service after the first deploy.
+# Step-by-step guide: docs/render-setup.md
 services:
-  - type: web
-    name: vendora-app
-    runtime: static
-    rootDir: web
-    buildCommand: npm ci && npm run build
-    staticPublishPath: dist
-    envVars:
-      - key: NODE_VERSION
-        value: "24"
-      - key: VITE_TTS_URL
-        value: https://vendora-server-pt7c.onrender.com
-
   - type: web
     name: vendora-server
     runtime: node
     rootDir: server
     plan: free
-    buildCommand: npm ci && npm run build
+    region: frankfurt
+    # Builds, then applies database migrations (uses DIRECT_URL).
+    buildCommand: npm ci && npm run build && npm run db:deploy
     startCommand: npm start
     healthCheckPath: /health
     envVars:
@@ -28,6 +20,12 @@ services:
         value: production
       - key: DATABASE_URL
         sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: DATABASE_TLS
+        value: "true"
+      - key: DATABASE_CA_FILE
+        value: certs/prod-ca-2021.crt
       - key: REDIS_URL
         sync: false
       - key: AUTH_PRIVATE_KEY
@@ -39,18 +37,28 @@ services:
       - key: AUTH_ISSUER
         sync: false
       - key: AUTH_AUDIENCE
-        sync: false
+        value: vendora-web
       - key: DELIVERY_ENCRYPTION_KEY
         sync: false
-      - key: DELIVERY_URL
+      - key: CORS_ORIGINS
         sync: false
-      - key: DELIVERY_TOKEN
+      - key: PUBLIC_API_ORIGIN
         sync: false
-      - key: TRUST_PROXY
-        sync: false
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: ENABLE_WHATSAPP
+        value: "false"
       - key: YARNGPT_API_KEY
         sync: false
       - key: YARNGPT_VOICE
         value: idera
-      - key: CORS_ORIGINS
-        sync: false
+
+  - type: web
+    name: vendora-app
+    runtime: static
+    rootDir: web
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: NODE_VERSION
+        value: "24"

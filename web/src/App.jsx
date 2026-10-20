@@ -18,6 +18,9 @@ import {
 } from "lucide-react";
 
 import { useStore, Toasts } from "./components/ui.jsx";
+// Phone-only build (GitHub Pages without a server): no sign-in step, everything saved on the phone.
+// Set VITE_LOCAL_ONLY=true at build time. Leave it unset when the site proxies /api to the server.
+const LOCAL_ONLY = import.meta.env.VITE_LOCAL_ONLY === "true";
 
 import {
   loadDemo,
@@ -554,7 +557,7 @@ export default function App() {
     };
   }, [accountMenuOpen]);
   const [demoMode, setDemoMode] = useState(
-    () => sessionStorage.getItem("vendora:demo-mode") === "true",
+    () => LOCAL_ONLY || sessionStorage.getItem("vendora:demo-mode") === "true",
   );
   useEffect(() => {
     if (demoMode) {
@@ -1011,7 +1014,7 @@ export default function App() {
           />
         )}
 
-        {demoMode && (
+        {demoMode && !LOCAL_ONLY && (
           <div className="vendora-demo-exit-wrap">
             <button
               type="button"
@@ -1173,6 +1176,7 @@ export default function App() {
 
                 <button
                   type="button"
+                  hidden={LOCAL_ONLY}
                   className="vendora-account-signout"
                   disabled={loggingOut}
                   onClick={() => {
