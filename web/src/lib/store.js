@@ -24,8 +24,12 @@ import {
 import { seller as hubSeller } from "./hub.js";
 import { SERVER_URL, API_KEY } from "./config.js";
 import { replicaRepository, replicaScope } from '../features/sync/replicaRepository.js';
+import { encryptedReplicaRepository } from '../features/security/encryptedReplicaRepository.js';
+import { accountRepository, getAccountRepository, waitForMigration } from '../features/security/accountStorage.js';
+import { extractAccountState } from '../features/security/offlineMigration.js';
 import { captureDomainChanges, domainOf, domainKeys, saleTotalNaira, toKobo } from '../features/sync/domain.js';
 import { hashPin, verifyPin, migrateStaffPins } from './staffPins.js';
+import { isOfflineSessionActive, checkSessionExpiry } from '../features/security/offlineSession.js';
 
 const LEGACY_KEY = "vendora:v2";
 const DEMO_KEY = "vendora:demo:v1";
@@ -33,9 +37,15 @@ const CUSTOM_DEMO_KEY = "vendora:custom-demo:v1";
 
 let activeStorageKey = DEMO_KEY;
 let activeReplicaScope = null;
+let activeAccountRepository = replicaRepository;
+let activeAccountEncrypted = false;
+
+export const isSecureAccountActive = () => activeAccountEncrypted;
+export const getActiveAccountRepository = () => activeAccountRepository;
 
 const accountStorageKey = (userId, businessId) =>
   `vendora:account:${encodeURIComponent(String(userId))}:${encodeURIComponent(String(businessId))}:v1`;
+
 
 export const emptyState = () => ({
   profile: {
@@ -111,6 +121,16 @@ function flushPendingSave() {
   clearTimeout(saveTimer);
   saveTimer = null;
 
+  if (activeAccountEncrypted) {
+    pendingSave = null;
+    try {
+      if (activeStorageKey && activeStorageKey !== DEMO_KEY && activeStorageKey !== CUSTOM_DEMO_KEY) {
+        localStorage.removeItem(activeStorageKey);
+      }
+    } catch {}
+    return;
+  }
+
   if (!pendingSave) return;
 
   const { key, snapshot } = pendingSave;
@@ -125,6 +145,16 @@ function flushPendingSave() {
 
 function persist() {
   clearTimeout(saveTimer);
+
+  if (activeAccountEncrypted) {
+    pendingSave = null;
+    try {
+      if (activeStorageKey && activeStorageKey !== DEMO_KEY && activeStorageKey !== CUSTOM_DEMO_KEY) {
+        localStorage.removeItem(activeStorageKey);
+      }
+    } catch {}
+    return;
+  }
 
   pendingSave = {
     key: activeStorageKey,
@@ -153,13 +183,64 @@ export async function activateAccount(userId, businessId) {
     throw new Error("A verified user and business are required.");
   }
 
-  switchStorage(accountStorageKey(userId, businessId));
-  await protectStaffPins();
   const scope = replicaScope(userId, businessId);
+  await waitForMigration(scope);
+
+  const storageKey = accountStorageKey(userId, businessId);
+  const repo = await getAccountRepository(scope);
   activeReplicaScope = scope;
-  const initial = domainOf(state);
-  const replica = await replicaRepository.update(scope, current => { current.domain ||= initial; });
-  publishReplica(scope, replica);
+  activeAccountRepository = repo;
+  activeAccountEncrypted = (repo === encryptedReplicaRepository);
+
+  if (activeAccountEncrypted) {
+    // Secure account: do not load or persist plaintext snapshot in localStorage
+    try {
+      localStorage.removeItem(storageKey);
+    } catch {}
+    activeStorageKey = storageKey;
+
+    const current = await repo.read(scope);
+    const initialAccountState = current.accountState ? structuredClone(current.accountState) : {};
+    const initialDomain = current.domain ? structuredClone(current.domain) : domainOf(emptyState());
+
+    state = {
+      ...emptyState(),
+      ...initialAccountState,
+      ...initialDomain,
+    };
+
+    await protectStaffPins();
+
+    let replica = current;
+    if (!current.domain || !current.accountState) {
+      replica = await repo.update(scope, draft => {
+        draft.domain ||= domainOf(state);
+        draft.accountState = {
+          ...(draft.accountState || {}),
+          ...extractAccountState(state),
+        };
+      });
+    }
+
+    publishReplica(scope, replica);
+    return replica;
+  } else {
+    // Legacy unencrypted account
+    switchStorage(storageKey);
+    await protectStaffPins();
+    const initial = domainOf(state);
+    const replica = await repo.update(scope, current => { current.domain ||= initial; });
+    publishReplica(scope, replica);
+    return replica;
+  }
+}
+export async function activateOfflineAccount(userId, businessId, accountKey) {
+  if (!userId || !businessId || !accountKey) {
+    throw new Error("User, business, and unlocked account key are required.");
+  }
+  const scope = replicaScope(userId, businessId);
+  encryptedReplicaRepository.setAccountKey(scope, accountKey);
+  const replica = await activateAccount(userId, businessId);
   return replica;
 }
 export const getActiveReplicaScope = () => activeReplicaScope;
@@ -171,7 +252,8 @@ export function reportSyncFailure(scope, error) {
 }
 export function publishReplica(scope, replica) {
   if (activeReplicaScope !== scope) return;
-  state = { ...state, ...structuredClone(replica.domain), localSync: {
+  const accountStateUpdate = replica.accountState ? structuredClone(replica.accountState) : {};
+  state = { ...state, ...accountStateUpdate, ...structuredClone(replica.domain), localSync: {
     phase: replica.phase, pending: replica.outbox.filter(item => item.status !== 'rejected').length,
     rejected: replica.outbox.filter(item => item.status === 'rejected'), lastError: replica.lastError,
     lastSyncAt: replica.lastSyncAt, migrationWarning: replica.migrationWarning || null,
@@ -180,33 +262,61 @@ export function publishReplica(scope, replica) {
   if (state.ledger.some(entry => !entry.sig)) scheduleSign();
 }
 export async function setDomainState(fn) {
+  if (isOfflineSessionActive() && checkSessionExpiry()) {
+    throw new Error('Offline access period has expired (7 days). Reconnection required to continue operations.');
+  }
   if (!activeReplicaScope) { setState(fn); return; }
   const scope = activeReplicaScope;
+  await waitForMigration(scope);
+  if (activeReplicaScope !== scope) return;
+  const repo = activeAccountRepository || await getAccountRepository(scope);
   const base = structuredClone(state);
   let localChanges = {};
-  const replica = await replicaRepository.update(scope, current => {
+  const replica = await repo.update(scope, current => {
     const draft = { ...base, ...structuredClone(current.domain || domainOf(base)) };
     const before = domainOf(draft);
     fn(draft);
-    localChanges = Object.fromEntries(Object.keys(draft).filter(key => !domainKeys.includes(key) && JSON.stringify(draft[key]) !== JSON.stringify(base[key]))
-      .map(key => [key, draft[key]]));
+    localChanges = Object.fromEntries(
+      Object.keys(draft)
+        .filter(key => !domainKeys.includes(key) && key !== 'localSync' && JSON.stringify(draft[key]) !== JSON.stringify(base[key]))
+        .map(key => [key, draft[key]])
+    );
     const after = domainOf(draft);
     captureDomainChanges(current, before, after, { offline: navigator.onLine === false,
       recordedBy: currentStaff(base)?.name || base.profile.name || 'Account holder' });
     current.domain = after;
     current.phase = navigator.onLine === false ? 'offline' : 'pending';
+    if (Object.keys(localChanges).length > 0) {
+      current.accountState = {
+        ...(current.accountState || {}),
+        ...structuredClone(localChanges),
+      };
+    }
   });
-  if (activeReplicaScope === scope) state = { ...state, ...localChanges };
+  if (activeReplicaScope !== scope) return;
+  state = { ...state, ...localChanges };
   publishReplica(scope, replica);
   window.dispatchEvent(new CustomEvent('vendora-outbox', { detail: { scope } }));
 }
 export function activateDemo() {
+  const previousScope = activeReplicaScope;
   activeReplicaScope = null;
+  activeAccountRepository = replicaRepository;
+  activeAccountEncrypted = false;
+  if (previousScope) {
+    encryptedReplicaRepository.clearAccountKey(previousScope);
+  }
   switchStorage(DEMO_KEY);
 }
 
 export function startCustomDemo() {
+  const previousScope = activeReplicaScope;
   activeReplicaScope = null;
+  activeAccountRepository = replicaRepository;
+  activeAccountEncrypted = false;
+  if (previousScope) {
+    encryptedReplicaRepository.clearAccountKey(previousScope);
+  }
   // Custom demo data is isolated from the sample shop and real accounts.
   switchStorage(CUSTOM_DEMO_KEY);
 
@@ -234,7 +344,13 @@ export function startCustomDemo() {
 }
 
 export function deactivateAccount() {
+  const previousScope = activeReplicaScope;
   activeReplicaScope = null;
+  activeAccountRepository = replicaRepository;
+  activeAccountEncrypted = false;
+  if (previousScope) {
+    encryptedReplicaRepository.clearAccountKey(previousScope);
+  }
   switchStorage(DEMO_KEY);
 }
 
@@ -258,6 +374,11 @@ export function setState(fn) {
     // Non-stock metadata (receipt references, contact edits and new local
     // evidence entries) must survive the next canonical pull as well. Core
     // stock/sale actions use setDomainState and await their durable commit.
+    const nonDomainChanges = Object.fromEntries(
+      Object.keys(draft)
+        .filter(key => !domainKeys.includes(key) && key !== 'localSync' && JSON.stringify(draft[key]) !== JSON.stringify(previous[key]))
+        .map(key => [key, draft[key]])
+    );
     const updates = ['txns', 'customers'].flatMap(collection => {
       const priorRecords = new Map(previous[collection].map(record => [record.id, record]));
       return draft[collection].flatMap(record => {
@@ -268,25 +389,34 @@ export function setState(fn) {
     const priorEntries = new Map(previous.ledger.map(entry => [entry.hash, entry]));
     const newEntries = draft.ledger.filter(entry => !priorEntries.has(entry.hash));
     const signed = draft.ledger.filter(entry => entry.sig && !priorEntries.get(entry.hash)?.sig);
-    if (updates.length || newEntries.length || signed.length) void replicaRepository.update(scope, replica => {
-      if (!replica.domain) return;
-      for (const update of updates) {
-        const record = replica.domain[update.collection].find(record => record.id === update.id);
-        if (record) Object.assign(record, update.fields);
-        else replica.domain[update.collection].push({ id: update.id, ...update.fields });
-      }
-      for (const entry of newEntries) {
-        if (replica.domain.ledger.some(saved => saved.hash === entry.hash)) continue;
-        const head = replica.domain.ledger.at(-1);
-        if (entry.prev === (head?.hash || '0'.repeat(64))) replica.domain.ledger.push(entry);
-        else if (!entry.sig) appendEntry(replica.domain, { kind: entry.kind, ref: entry.ref, evidence: entry.evidence, data: entry.data, at: entry.at });
-        else { replica.evidenceArchive ||= []; replica.evidenceArchive.push(entry); }
-      }
-      for (const entry of signed) {
-        const saved = replica.domain.ledger.find(saved => saved.hash === entry.hash);
-        if (saved && !saved.sig) saved.sig = entry.sig;
-      }
-    }).then(replica => publishReplica(scope, replica)).catch(error => reportSyncFailure(scope, error));
+    if (updates.length || newEntries.length || signed.length || (activeAccountEncrypted && Object.keys(nonDomainChanges).length > 0)) {
+      const repo = activeAccountRepository || replicaRepository;
+      void repo.update(scope, replica => {
+        if (activeAccountEncrypted && Object.keys(nonDomainChanges).length > 0) {
+          replica.accountState = {
+            ...(replica.accountState || {}),
+            ...structuredClone(nonDomainChanges),
+          };
+        }
+        if (!replica.domain) return;
+        for (const update of updates) {
+          const record = replica.domain[update.collection].find(record => record.id === update.id);
+          if (record) Object.assign(record, update.fields);
+          else replica.domain[update.collection].push({ id: update.id, ...update.fields });
+        }
+        for (const entry of newEntries) {
+          if (replica.domain.ledger.some(saved => saved.hash === entry.hash)) continue;
+          const head = replica.domain.ledger.at(-1);
+          if (entry.prev === (head?.hash || '0'.repeat(64))) replica.domain.ledger.push(entry);
+          else if (!entry.sig) appendEntry(replica.domain, { kind: entry.kind, ref: entry.ref, evidence: entry.evidence, data: entry.data, at: entry.at });
+          else { replica.evidenceArchive ||= []; replica.evidenceArchive.push(entry); }
+        }
+        for (const entry of signed) {
+          const saved = replica.domain.ledger.find(saved => saved.hash === entry.hash);
+          if (saved && !saved.sig) saved.sig = entry.sig;
+        }
+      }).then(replica => publishReplica(scope, replica)).catch(error => reportSyncFailure(scope, error));
+    }
   }
 }
 
@@ -315,9 +445,12 @@ function scheduleSign() {
           for (const e of d.ledger)
             if (!e.sig && sigs[e.hash]) e.sig = sigs[e.hash];
         });
-      if (signingScope) await replicaRepository.update(signingScope, replica => {
-        for (const entry of replica.domain?.ledger || []) if (!entry.sig && sigs[entry.hash]) entry.sig = sigs[entry.hash];
-      });
+      if (signingScope) {
+        const repo = activeAccountRepository || await getAccountRepository(signingScope);
+        await repo.update(signingScope, replica => {
+          for (const entry of replica.domain?.ledger || []) if (!entry.sig && sigs[entry.hash]) entry.sig = sigs[entry.hash];
+        });
+      }
     } catch {
       /* signing unavailable on this browser */
     } finally {

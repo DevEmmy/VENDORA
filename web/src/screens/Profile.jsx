@@ -1,11 +1,19 @@
 import React, { useState } from 'react';
-import { Users, Crown, MessageCircle, ShieldCheck, Languages, Volume2, Bell, Landmark, ChevronRight, RotateCcw, Store, UserRound, TrendingUp, FileText, MapPin, BadgeCheck, Megaphone, Mic } from 'lucide-react';
+import { Users, Crown, MessageCircle, ShieldCheck, Languages, Volume2, Bell, Landmark, ChevronRight, RotateCcw, Store, UserRound, TrendingUp, FileText, MapPin, BadgeCheck, Megaphone, Mic, Lock } from 'lucide-react';
 import { useStore, Top, Sheet, Field, Toggle, initials } from '../components/ui.jsx';
 import { useNav } from '../App.jsx';
-import { updateProfile, resetAll, loadDemo, isOwner, currentStaff, toast } from '../lib/store.js';
+import { updateProfile, resetAll, loadDemo, isOwner, currentStaff, toast, activateOfflineAccount } from '../lib/store.js';
 import { LANGUAGES, langLabel } from '../lib/i18n.js';
 import { fmtCoord } from '../lib/device.js';
 import { useAuthStore } from '../features/auth/authStore.js';
+import { replicaScope } from '../features/sync/replicaRepository.js';
+import { encryptedReplicaRepository } from '../features/security/encryptedReplicaRepository.js';
+import {
+  isEnrolledForOfflineAccess,
+  enableOfflineAccess,
+  revokeOfflineEnrollment,
+} from '../features/security/offlineEnrollment.js';
+
 
 export default function Profile() {
   const s = useStore();
@@ -17,6 +25,14 @@ export default function Profile() {
   const owner = isOwner(s);
   const me = currentStaff(s);
   const authenticated = useAuthStore(state => state.status === 'authenticated');
+  const user = useAuthStore(state => state.user);
+  const selectedBusinessId = useAuthStore(state => state.selectedBusinessId);
+  const [offlineModal, setOfflineModal] = useState(false);
+  const [offlinePassword, setOfflinePassword] = useState('');
+  const [offlineBusy, setOfflineBusy] = useState(false);
+  const [offlineError, setOfflineError] = useState('');
+  const [enrolled, setEnrolled] = useState(() => isEnrolledForOfflineAccess(user?.id, selectedBusinessId));
+
 
   const Row = ({ icon: Icon, tone = 'ink', label, sub, onClick, right }) => (
     <button className="item" onClick={onClick}>
@@ -67,6 +83,19 @@ export default function Profile() {
         <div className="h2">Settings</div>
         <div className="list">
           {authenticated && <Row icon={ShieldCheck} label="Change password" sub="Signs out every device; keeps local records" onClick={() => go('password')} />}
+          {authenticated && (
+            <Row
+              icon={Lock}
+              tone={enrolled ? "leaf" : "ink"}
+              label="Offline access"
+              sub={enrolled ? "Enabled on this device" : "Reopen your shop without internet"}
+              onClick={() => {
+                setOfflineError('');
+                setOfflinePassword('');
+                setOfflineModal(true);
+              }}
+            />
+          )}
           <Row icon={Mic} label="Permissions" sub="Microphone, sound, location, camera" onClick={() => go('permissions')} />
           <Row icon={Languages} label="Language" sub={langLabel(p.language)} onClick={() => setLang(true)} />
           <Switch icon={Volume2} label="Speak replies out loud" on={p.speakReplies} set={v => updateProfile({ speakReplies: v })} />
@@ -98,6 +127,105 @@ export default function Profile() {
             <button className="btn plain grow" onClick={() => setReset(false)}>Keep my shop</button>
             <button className="btn danger grow" onClick={() => { resetAll(); }}>Clear everything</button>
           </div>
+        </Sheet>
+      )}
+      {offlineModal && (
+        <Sheet
+          title="Offline access"
+          sub="Reopen your shop and make sales even without internet connection. Your local records are protected with your password."
+          onClose={() => setOfflineModal(false)}
+        >
+          {enrolled ? (
+            <div>
+              <div className="card row" style={{ background: '#e6f4ea', borderColor: '#ceead6', marginTop: 12 }}>
+                <ShieldCheck size={22} style={{ color: '#137333', flexShrink: 0 }} />
+                <div className="grow">
+                  <b style={{ color: '#137333' }}>Offline access is active</b>
+                  <div className="small muted">
+                    Your account is secured with password-wrapped offline encryption.
+                  </div>
+                </div>
+              </div>
+              {offlineError && (
+                <div style={{ color: '#c5221f', background: '#fce8e6', padding: '8px 12px', borderRadius: 8, fontSize: 13, marginTop: 12 }}>
+                  {offlineError}
+                </div>
+              )}
+              <button
+                className="btn danger full"
+                style={{ marginTop: 20 }}
+                disabled={offlineBusy}
+                onClick={async () => {
+                  if (offlineBusy) return;
+                  setOfflineError('');
+                  setOfflineBusy(true);
+                  try {
+                    await revokeOfflineEnrollment({
+                      userId: user?.id,
+                      businessId: selectedBusinessId,
+                    });
+                    setEnrolled(false);
+                    toast('Offline access disabled for this device.');
+                    setOfflineModal(false);
+                  } catch (err) {
+                    setOfflineError(err?.message || 'Could not disable offline access.');
+                  } finally {
+                    setOfflineBusy(false);
+                  }
+                }}
+              >
+                {offlineBusy ? 'Checking records...' : 'Disable offline access'}
+              </button>
+            </div>
+          ) : (
+            <div style={{ marginTop: 12 }}>
+              {offlineError && (
+                <div style={{ color: '#c5221f', background: '#fce8e6', padding: '8px 12px', borderRadius: 8, fontSize: 13, marginBottom: 12 }}>
+                  {offlineError}
+                </div>
+              )}
+              <Field label="Confirm account password">
+                <input
+                  type="password"
+                  value={offlinePassword}
+                  onChange={e => setOfflinePassword(e.target.value)}
+                  placeholder="Enter your Vendora password"
+                />
+              </Field>
+              <button
+                className="btn primary full"
+                style={{ marginTop: 16 }}
+                disabled={offlineBusy || !offlinePassword}
+                onClick={async () => {
+                  if (offlineBusy) return;
+                  setOfflineError('');
+                  setOfflineBusy(true);
+                  try {
+                    const { accountKey } = await enableOfflineAccess({
+                      userId: user.id,
+                      businessId: selectedBusinessId,
+                      password: offlinePassword,
+                      businessName: p.businessName,
+                      userName: user.name,
+                      phone: user.phone,
+                    });
+                    const scope = replicaScope(user.id, selectedBusinessId);
+                    encryptedReplicaRepository.setAccountKey(scope, accountKey);
+                    await activateOfflineAccount(user.id, selectedBusinessId, accountKey);
+                    setEnrolled(true);
+                    toast('Offline access enabled on this device.');
+                    setOfflineModal(false);
+                  } catch (err) {
+                    setOfflineError(err?.message || 'Could not enable offline access. Please check your password.');
+                  } finally {
+                    setOfflineBusy(false);
+                  }
+                }}
+              >
+                {offlineBusy ? 'Securing offline access...' : 'Enable offline access'}
+              </button>
+            </div>
+          )}
         </Sheet>
       )}
     </div>
