@@ -3,7 +3,7 @@
 Login uses strict cookies, so the website and the server must share **one web address**:
 the Render website forwards `/api`, `/wema` and `/whatsapp` to the Render server.
 You need three free services: **Supabase** (database), **Render Key Value** (Redis) and **Render** (website + server).
-Use the **same region** everywhere (this guide uses Frankfurt / Central EU).
+Use the **same region** everywhere: **Oregon (US West)**, because the existing vendora-server is there.
 
 ## 1. Make the secrets (on your computer, 1 minute)
 In the `server` folder: `npm ci` then `npm run secrets`.
@@ -11,17 +11,17 @@ Keep the output somewhere private. You get `AUTH_KEY_ID`, `AUTH_PRIVATE_KEY`, `A
 `DELIVERY_ENCRYPTION_KEY` and a `RUNTIME_DB_PASSWORD`. Never commit or share these.
 
 ## 2. Database: Supabase
-1. supabase.com → **New project**. Name `vendora`, choose a strong database password (save it), region **Central EU (Frankfurt)**.
+1. supabase.com → **New project**. Name `vendora`, choose a strong database password (save it), region **West US (Oregon)**.
 2. Top bar **Connect** → **Session pooler** (port **5432**, not 6543). Copy the URI, e.g.
-   `postgresql://postgres.abcd1234:[YOUR-PASSWORD]@aws-0-eu-central-1.pooler.supabase.com:5432/postgres`
+   `postgresql://postgres.abcd1234:[YOUR-PASSWORD]@aws-0-us-west-1.pooler.supabase.com:5432/postgres`
 3. Replace `[YOUR-PASSWORD]` with your password and add `?sslmode=require` at the end. This is **DIRECT_URL** (used only for migrations).
 4. Make **DATABASE_URL** from the same address, with two changes: user `postgres.abcd1234` becomes `vendora_app.abcd1234`,
    and the password becomes your `RUNTIME_DB_PASSWORD`. No `?sslmode` on this one:
-   `postgresql://vendora_app.abcd1234:RUNTIME_DB_PASSWORD@aws-0-eu-central-1.pooler.supabase.com:5432/postgres`
+   `postgresql://vendora_app.abcd1234:RUNTIME_DB_PASSWORD@aws-0-us-west-1.pooler.supabase.com:5432/postgres`
 5. Project Settings → **Data API** → turn it off (Vendora doesn't use it).
 
 ## 3. Redis: Render Key Value
-render.com → **New → Key Value** → name `vendora-redis`, region **Frankfurt**, plan **Free** → Create.
+render.com → **New → Key Value** → name `vendora-redis`, region **Oregon**, plan **Free** → Create.
 Copy the **Internal Key Value URL** (`redis://red-…:6379`). This is **REDIS_URL**.
 
 ## 4. Website + server: Render Blueprint
