@@ -8,11 +8,12 @@ services:
     plan: free
     region: oregon
     # Builds the website, builds the server, then creates/updates the database tables.
+    # Works whether Render starts in the repo root or in server/ (older setting).
     buildCommand: >-
-      cd web && npm ci --include=dev && VITE_BASE=/ npm run build &&
+      if [ ! -d web ]; then cd ..; fi && cd web && npm ci --include=dev && VITE_BASE=/ npm run build &&
       cd ../server && npm ci --include=dev && npm run build &&
       DIRECT_URL="${DIRECT_URL:-${DATABASE_URL}?sslmode=require}" npm run db:deploy
-    startCommand: cd server && npm start
+    startCommand: if [ -d server ]; then cd server; fi && npm start
     healthCheckPath: /health
     envVars:
       - key: NODE_VERSION
