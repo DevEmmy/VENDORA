@@ -1300,3 +1300,84 @@ body:has(.vendora-auth-layout) #root {
     gap: 11px;
   }
 }
+
+/* ==========================================
+   Sign-in picture story (AuthScenes)
+   ========================================== */
+.vas { width: 100%; max-width: 440px; margin: 0 auto; text-align: left; user-select: none; }
+.vas-bars { display: flex; gap: 6px; margin-bottom: 12px; }
+.vas-tick { flex: 1; height: 22px; padding: 9px 0; display: block; background: none; border: 0; cursor: pointer; }
+.vas-tick span { display: block; height: 4px; border-radius: 4px; background: rgba(255,255,255,.22); position: relative; overflow: hidden; }
+.vas-tick span::after { content: ""; position: absolute; inset: 0; background: var(--kola); transform: scaleX(0); transform-origin: left; border-radius: inherit; }
+.vas-tick.done span::after { transform: scaleX(1); }
+.vas-tick.now span::after { animation: vas-fill var(--vas-ms) linear forwards; }
+.vas-paused .vas-tick.now span::after { animation-play-state: paused; }
+.vas-tick:focus-visible { outline: 2px solid var(--kola); outline-offset: 2px; border-radius: 4px; }
+@keyframes vas-fill { to { transform: scaleX(1); } }
+
+.vas-stage { position: relative; aspect-ratio: 320 / 190; border-radius: 20px; overflow: hidden; background: var(--ink-2);
+  box-shadow: 0 18px 40px rgba(0,0,0,.28), 0 0 0 1px rgba(255,255,255,.08); transition: transform .25s ease-out; touch-action: pan-y; cursor: grab; }
+.vas-stage:active { cursor: grabbing; }
+.vas-slide { position: absolute; inset: 0; opacity: 0; transform: scale(1.06); transition: opacity .6s ease, transform 1.2s cubic-bezier(.2,.7,.2,1); }
+.vas-slide.on { opacity: 1; transform: scale(1); }
+.vas-slide svg { width: 100%; height: 100%; display: block; }
+
+.vas-caption { margin-top: 14px; min-height: 58px; }
+.vas-caption strong { display: block; color: #fff; font-size: 18px; font-weight: 800; letter-spacing: -.3px; line-height: 1.25; animation: vas-in .5s ease both; }
+.vas-caption span { display: block; color: #b9c8f5; font-size: 13.5px; line-height: 1.45; margin-top: 4px; animation: vas-in .5s .08s ease both; }
+@keyframes vas-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* Scene animations: only play on the scene being shown, so they replay each time it returns. */
+.vas-slide :is(.vas-pop, .vas-rise, .vas-fade, .vas-stamp, .vas-coin) { opacity: 0; }
+.vas-slide.on .vas-pop { animation: vas-pop .5s cubic-bezier(.3,1.6,.5,1) both; transform-box: fill-box; transform-origin: 10% 100%; }
+.vas-slide.on .vas-rise { animation: vas-rise .55s cubic-bezier(.2,.9,.3,1.2) both; }
+.vas-slide.on .vas-fade { animation: vas-fade .5s ease both; }
+.vas-slide.on .vas-stamp { animation: vas-stamp .45s cubic-bezier(.3,1.7,.5,1) both; transform-box: fill-box; transform-origin: center; }
+.vas-slide.on .vas-coin { animation: vas-coin .7s cubic-bezier(.5,0,.6,1.4) both; }
+.vas-slide .vas-draw { stroke-dasharray: 40; stroke-dashoffset: 40; }
+.vas-slide.on .vas-draw { animation: vas-draw .4s ease forwards; }
+.vas-slide.on .vas-wave { animation: vas-wave .8s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: center; }
+.vas-slide.on .vas-pulse { animation: vas-pulse 1.4s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+.vas-slide.on .vas-bar { animation: vas-grow .7s cubic-bezier(.2,.9,.3,1.1) both; transform-box: fill-box; transform-origin: bottom; }
+.vas-slide.on .vas-low { animation: vas-grow .7s cubic-bezier(.2,.9,.3,1.1) both, vas-blink 1s 1.2s ease-in-out infinite; }
+.vas-slide .vas-gauge { stroke-dasharray: 100; stroke-dashoffset: 100; }
+.vas-slide.on .vas-gauge { animation: vas-gauge 1.5s .2s cubic-bezier(.3,.8,.3,1) forwards; }
+.vas-slide.on .vas-fake { animation: vas-shake .5s 1.1s ease both; transform-box: fill-box; }
+
+@keyframes vas-pop { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: scale(1); } }
+@keyframes vas-rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+@keyframes vas-fade { to { opacity: 1; } }
+@keyframes vas-stamp { from { opacity: 0; transform: scale(1.8); } to { opacity: 1; transform: scale(1); } }
+@keyframes vas-coin { from { opacity: 0; transform: translateY(-50px); } 60% { opacity: 1; } to { opacity: 1; transform: translateY(0); } }
+@keyframes vas-draw { to { stroke-dashoffset: 0; } }
+@keyframes vas-wave { from { transform: scaleY(.35); } to { transform: scaleY(1.25); } }
+@keyframes vas-pulse { from { transform: scale(.8); opacity: .5; } to { transform: scale(1.6); opacity: 0; } }
+@keyframes vas-grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes vas-blink { 50% { opacity: .45; } }
+@keyframes vas-gauge { to { stroke-dashoffset: 26; } }
+@keyframes vas-shake { 0%,100% { translate: 0 0; } 20% { translate: -5px 0; } 40% { translate: 5px 0; } 60% { translate: -3px 0; } 80% { translate: 3px 0; } }
+
+/* On phones the story sits in the blue header above the form. */
+.vas-compact { margin: 4px auto 18px; }
+.vas-compact .vas-stage { border-radius: 16px; }
+.vas-compact .vas-caption { min-height: 0; text-align: center; }
+.vas-compact .vas-caption strong { font-size: 16px; }
+.vas-compact .vas-caption span { font-size: 13px; }
+.vendora-auth-desktop-banner .vas { margin: 28px 0 28px; max-width: none; }
+
+/* Sign in / New account switch */
+.vendora-auth-tabs { position: relative; display: grid; grid-template-columns: 1fr 1fr; background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 4px; margin-bottom: 20px; }
+.vendora-auth-tabs::before { content: ""; position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc(50% - 4px); border-radius: 10px; background: #fff; box-shadow: 0 2px 8px rgba(10,26,71,.12); transition: transform .35s cubic-bezier(.3,1.3,.5,1); }
+.vendora-auth-tabs[data-mode="register"]::before { transform: translateX(100%); }
+.vendora-auth-tabs button { position: relative; min-height: 42px; font-weight: 800; font-size: 14px; color: var(--text-2); background: none; border: 0; transition: color .2s; }
+.vendora-auth-tabs button[aria-pressed="true"] { color: var(--ink); }
+.vendora-auth-form .btn { transition: transform .12s ease, box-shadow .2s ease; }
+.vendora-auth-form .btn:active:not(:disabled) { transform: scale(.97); }
+.vendora-auth-mode { animation: vas-in .35s ease both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .vas-tick.now span::after { animation: none; transform: scaleX(1); }
+  .vas-slide, .vas-stage, .vendora-auth-tabs::before { transition: none; }
+  .vas-slide.on *, .vas-caption *, .vendora-auth-mode { animation: none !important; opacity: 1 !important; transform: none !important; stroke-dashoffset: 0 !important; }
+  .vas-slide.on .vas-gauge { stroke-dashoffset: 26 !important; }
+}

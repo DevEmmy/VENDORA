@@ -59,6 +59,7 @@ import {
 } from "./features/security/offlineSession.js";
 import OfflineUnlockScreen from "./screens/OfflineUnlockScreen.jsx";
 import AuthBanner from "./components/AuthBanner.jsx";
+import AuthScenes from "./components/AuthScenes.jsx";
 
 import Welcome from "./screens/Welcome.jsx";
 import Setup from "./screens/Setup.jsx";
@@ -161,6 +162,13 @@ function AuthScreen({ onDemo, expired = false }) {
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  const switchMode = (next) => {
+    if (next === mode) return;
+    setError("");
+    setShowPassword(false);
+    setMode(next);
+  };
 
   const change = (field, value) => {
     setForm((previous) => ({
@@ -294,6 +302,8 @@ function AuthScreen({ onDemo, expired = false }) {
             <span>Vendora</span>
           </div>
 
+          <AuthScenes compact />
+
           <h1>{mode === "login" ? "Welcome back!" : "Join Vendora"}</h1>
           <p>
             {mode === "login"
@@ -308,6 +318,25 @@ function AuthScreen({ onDemo, expired = false }) {
               mode === "register" ? "vendora-auth-card-register" : ""
             }`}
           >
+            <div className="vendora-auth-tabs" data-mode={mode}>
+              <button
+                type="button"
+                aria-pressed={mode === "login"}
+                aria-label="Sign in to your account"
+                onClick={() => switchMode("login")}
+              >
+                Sign in
+              </button>
+              <button
+                type="button"
+                aria-pressed={mode === "register"}
+                aria-label="Create a new account"
+                onClick={() => switchMode("register")}
+              >
+                New account
+              </button>
+            </div>
+            <div className="vendora-auth-mode" key={mode}>
             <h2>{mode === "login" ? "Sign in" : "Create account"}</h2>
             <p className="vendora-auth-subtitle">
               {mode === "login"
@@ -458,21 +487,7 @@ function AuthScreen({ onDemo, expired = false }) {
               </button>
             </form>
 
-            <p className="vendora-auth-switch">
-              {mode === "login"
-                ? "New to Vendora?"
-                : "Already have an account?"}{" "}
-              <button
-                type="button"
-                onClick={() => {
-                  setError("");
-                  setShowPassword(false);
-                  setMode(mode === "login" ? "register" : "login");
-                }}
-              >
-                {mode === "login" ? "Create account" : "Sign in"}
-              </button>
-            </p>
+            </div>
 
             <div className="vendora-auth-divider">
               <span>or</span>
