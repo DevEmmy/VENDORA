@@ -23,6 +23,7 @@ import type { Passwords } from "./services/password.service";
 import { Recovery } from "./services/recovery.service";
 import { Sessions } from "./services/session.service";
 import type { Tokens } from "./services/token.service";
+import { serveWebsite, webDist } from "./web";
 
 export interface AppDependencies {
   config: Config;
@@ -80,6 +81,8 @@ export function createApp(deps: AppDependencies) {
     next();
   });
   app.get("/health", (_req, res) => res.json({ ok: true }));
+  const site = webDist();
+  if (site) serveWebsite(app, site);
   app.use(
     asyncRoute(async (req, _res, next) => {
       await limiter.take(`all:${req.ip}`, 120, 60);

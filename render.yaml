@@ -1,32 +1,47 @@
-# Vendora on Render: the website and the API server.
-# Login cookies are SameSite=Strict, so the website must forward /api, /wema and /whatsapp to the server
-# (one public address). Add those rewrite rules on the vendora-app service after the first deploy.
-# Step-by-step guide: docs/render-setup.md
+# Vendora on Render: ONE service that is both the website and the API (same address, so login cookies work),
+# plus a free Redis. The database is Supabase (paste its link as DATABASE_URL).
+# Setup: docs/render-setup.md
 services:
   - type: web
     name: vendora-server
     runtime: node
-    rootDir: server
     plan: free
     region: oregon
-    # Builds, then applies database migrations (uses DIRECT_URL).
-    buildCommand: npm ci && npm run build && npm run db:deploy
-    startCommand: npm start
+    # Builds the website, builds the server, then creates/updates the database tables.
+    buildCommand: >-
+      cd web && npm ci --include=dev && VITE_BASE=/ npm run build &&
+      cd ../server && npm ci --include=dev && npm run build &&
+      DIRECT_URL="${DIRECT_URL:-${DATABASE_URL}?sslmode=require}" npm run db:deploy
+    startCommand: cd server && npm start
     healthCheckPath: /health
     envVars:
       - key: NODE_VERSION
         value: "24"
       - key: NODE_ENV
         value: production
-      - key: DATABASE_URL
-        sync: false
-      - key: DIRECT_URL
-        sync: false
+      - key: SERVE_WEB
+        value: "true"
+      - key: TRUST_PROXY
+        value: uniquelocal
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: vendora-redis
+          property: connectionString
       - key: DATABASE_TLS
         value: "true"
       - key: DATABASE_CA_FILE
         value: certs/prod-ca-2021.crt
-      - key: REDIS_URL
+      - key: AUTH_AUDIENCE
+        value: vendora-web
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: ENABLE_WHATSAPP
+        value: "false"
+      - key: YARNGPT_VOICE
+        value: idera
+      # Pasted from vendora-render.env (Environment > Add from .env). Never commit these.
+      - key: DATABASE_URL
         sync: false
       - key: AUTH_PRIVATE_KEY
         sync: false
@@ -34,31 +49,15 @@ services:
         sync: false
       - key: AUTH_KEY_ID
         sync: false
-      - key: AUTH_ISSUER
-        sync: false
-      - key: AUTH_AUDIENCE
-        value: vendora-web
       - key: DELIVERY_ENCRYPTION_KEY
         sync: false
-      - key: CORS_ORIGINS
-        sync: false
-      - key: PUBLIC_API_ORIGIN
-        sync: false
-      - key: COOKIE_SECURE
-        value: "true"
-      - key: ENABLE_WHATSAPP
-        value: "false"
       - key: YARNGPT_API_KEY
         sync: false
-      - key: YARNGPT_VOICE
-        value: idera
+      # AUTH_ISSUER, CORS_ORIGINS and PUBLIC_API_ORIGIN default to this service's own https address.
 
-  - type: web
-    name: vendora-app
-    runtime: static
-    rootDir: web
-    buildCommand: npm ci && npm run build
-    staticPublishPath: dist
-    envVars:
-      - key: NODE_VERSION
-        value: "24"
+  - type: keyvalue
+    name: vendora-redis
+    plan: free
+    region: oregon
+    maxmemoryPolicy: noeviction
+    ipAllowList: []
