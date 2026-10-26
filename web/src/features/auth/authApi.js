@@ -6,6 +6,7 @@ export const authApi = {
     method: 'POST', body: { currentPassword, password }, auth: false,
   }),
   forgotPassword: phone => api.request('/api/auth/password/forgot', { method: 'POST', body: { phone }, auth: false }),
+  resetPassword: (token, password) => api.request('/api/auth/password/reset', { method: 'POST', body: { token, password }, auth: false }),
   register: (details) =>
     api.request('/api/auth/register', {
       method: 'POST',

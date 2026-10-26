@@ -4,15 +4,22 @@ import { createSyncEngine, mergeChange } from './outbox.js';
 import { replicaRepository, replicaScope } from './replicaRepository.js';
 import { prepareOperation, acceptOperation, projectReplica } from './domain.js';
 import { bootstrapLegacy } from './bootstrap.js';
+import { accountRepository } from '../security/accountStorage.js';
+import { isOfflineSessionActive } from '../security/offlineSession.js';
 
 let activeSync = null;
 export const getActiveSync = () => activeSync;
 
-export function startAccountSync({ userId, businessId }) {
+export function startAccountSync({ userId, businessId, repository }) {
+  if (isOfflineSessionActive()) {
+    throw new Error('Synchronization cannot run in an offline-unlocked session. Server authentication required.');
+  }
   const scope = replicaScope(userId, businessId);
+  const repo = repository || accountRepository;
   let stopped = false;
   const channel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('vendora-outbox') : null;
-  const engine = createSyncEngine({ repository: replicaRepository, scope, businessId, request: apiRequest,
+  channel?.unref?.();
+  const engine = createSyncEngine({ repository: repo, scope, businessId, request: apiRequest,
     requestBatch: (operations, options) => apiRequest('/api/sync/push', { ...options, method: 'POST', body: {
       operations: operations.map(operation => ({ action: operation.action, body: operation.wire.body,
         ...(!['product.create', 'sale.create'].includes(operation.action) ? { entityId: operation.wire.path.split('/')[3] } : {}) })),
@@ -26,21 +33,22 @@ export function startAccountSync({ userId, businessId }) {
     onChange: state => { if (!stopped && getActiveReplicaScope() === scope) publishReplica(scope, state); },
   });
   const refresh = async () => {
-    if (stopped || getActiveReplicaScope() !== scope) return;
+    if (stopped || getActiveReplicaScope() !== scope || isOfflineSessionActive()) return;
     try {
-      publishReplica(scope, await replicaRepository.read(scope));
+      publishReplica(scope, await repo.read(scope));
       await engine.sync();
     } catch (error) { if (!stopped) reportSyncFailure(scope, error); }
   };
   const changed = event => {
-    if (event.detail?.scope !== scope) return;
+    if (event.detail?.scope !== scope || isOfflineSessionActive()) return;
     channel?.postMessage({ scope }); void refresh();
   };
-  const peerChanged = event => { if (event.data?.scope === scope) void refresh(); };
-  const wake = () => { void refresh(); };
+  const peerChanged = event => { if (event.data?.scope === scope && !isOfflineSessionActive()) void refresh(); };
+  const wake = () => { if (!isOfflineSessionActive()) void refresh(); };
   const resumeOnline = async () => {
+    if (isOfflineSessionActive()) return;
     try {
-      await replicaRepository.update(scope, state => { for (const operation of state.outbox) if (operation.status === 'pending') operation.nextAttemptAt = 0; });
+      await repo.update(scope, state => { for (const operation of state.outbox) if (operation.status === 'pending') operation.nextAttemptAt = 0; });
       await refresh();
     } catch (error) { if (!stopped) reportSyncFailure(scope, error); }
   };
@@ -51,7 +59,7 @@ export function startAccountSync({ userId, businessId }) {
   window.addEventListener('focus', wake);
   channel?.addEventListener('message', peerChanged);
   activeSync = { scope, async sync() {
-    await replicaRepository.update(scope, state => { for (const operation of state.outbox) if (operation.status === 'pending') operation.nextAttemptAt = 0; });
+    await repo.update(scope, state => { for (const operation of state.outbox) if (operation.status === 'pending') operation.nextAttemptAt = 0; });
     return engine.sync();
   }, retry: id => engine.retry(id),
     async acceptVoiceResult(result) {
@@ -65,11 +73,11 @@ export function startAccountSync({ userId, businessId }) {
       void refresh();
     },
     async acknowledgeMigrationWarning() {
-      const state = await replicaRepository.update(scope, replica => { replica.migrationWarning = null; });
+      const state = await repo.update(scope, replica => { replica.migrationWarning = null; });
       publishReplica(scope, state); await engine.sync();
     },
     async discardRejected(id) {
-      const state = await replicaRepository.update(scope, replica => {
+      const state = await repo.update(scope, replica => {
         const operation = replica.outbox.find(value => value.id === id);
         if (operation?.status !== 'rejected') throw new Error('Only a confirmed rejection can be dismissed.');
         replica.outbox = replica.outbox.filter(value => value.id !== id);
@@ -80,7 +88,7 @@ export function startAccountSync({ userId, businessId }) {
       publishReplica(scope, state);
     },
     async retryPhysicalSale(id) {
-      const state = await replicaRepository.update(scope, replica => {
+      const state = await repo.update(scope, replica => {
         const operation = replica.outbox.find(value => value.id === id);
         if (operation?.status !== 'rejected' || operation.error?.code !== 'INSUFFICIENT_STOCK' || operation.action !== 'sale.create')
           throw new Error('Only a known stock rejection can be recorded as a completed physical sale.');
@@ -91,9 +99,9 @@ export function startAccountSync({ userId, businessId }) {
       });
       publishReplica(scope, state); await engine.sync();
     },
-    async pending() { return (await replicaRepository.read(scope)).outbox.length; },
+    async pending() { return (await repo.read(scope)).outbox.length; },
     async discardForLogout() {
-      const state = await replicaRepository.update(scope, replica => {
+      const state = await repo.update(scope, replica => {
         replica.discarded ||= [];
         replica.discarded.push(...replica.outbox.map(operation => ({ ...operation, discardedAt: Date.now() })));
         replica.outbox = []; projectReplica(replica);

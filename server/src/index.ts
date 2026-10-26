@@ -16,7 +16,17 @@ import { createBackgroundJobs } from './services/background-jobs';
 
 let startupStage: StartupStage = "configuration";
 
+// On Render the site and API share the service's own https address, so fill in the
+// address-based settings from it unless they were set by hand.
+function useRenderAddress() {
+  const own = process.env.RENDER_EXTERNAL_URL?.replace(/\/+$/, "");
+  if (!own) return;
+  for (const key of ["AUTH_ISSUER", "CORS_ORIGINS", "PUBLIC_API_ORIGIN"])
+    if (!process.env[key]) process.env[key] = own;
+}
+
 async function main() {
+  useRenderAddress();
   const config = loadConfig();
   for (const warning of config.cookieTopologyWarnings) console.warn(`Cookie configuration: ${warning}`);
   startupStage = "database";

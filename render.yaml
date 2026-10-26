@@ -1,34 +1,48 @@
-# One-click deploy on Render (free plan): the Vendora website and the Vendora server.
-# The server holds the YarnGPT key so the website never exposes it.
+# Vendora on Render: ONE service that is both the website and the API (same address, so login cookies work),
+# plus a free Redis. The database is Supabase (paste its link as DATABASE_URL).
+# Setup: docs/render-setup.md
 services:
-  - type: web
-    name: vendora-app
-    runtime: static
-    rootDir: web
-    buildCommand: npm ci && npm run build
-    staticPublishPath: dist
-    envVars:
-      - key: NODE_VERSION
-        value: "24"
-      - key: VITE_TTS_URL
-        value: https://vendora-server-pt7c.onrender.com
-
   - type: web
     name: vendora-server
     runtime: node
-    rootDir: server
     plan: free
-    buildCommand: npm ci && npm run build
-    startCommand: npm start
+    region: oregon
+    # Builds the website, builds the server, then creates/updates the database tables.
+    # Works whether Render starts in the repo root or in server/ (older setting).
+    buildCommand: >-
+      if [ ! -d web ]; then cd ..; fi && cd web && npm ci --include=dev && VITE_BASE=/ npm run build &&
+      cd ../server && npm ci --include=dev && npm run build &&
+      DIRECT_URL="${DIRECT_URL:-${DATABASE_URL}?sslmode=require}" npm run db:deploy
+    startCommand: if [ -d server ]; then cd server; fi && npm start
     healthCheckPath: /health
     envVars:
       - key: NODE_VERSION
         value: "24"
       - key: NODE_ENV
         value: production
-      - key: DATABASE_URL
-        sync: false
+      - key: SERVE_WEB
+        value: "true"
+      - key: TRUST_PROXY
+        value: uniquelocal
       - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: vendora-redis
+          property: connectionString
+      - key: DATABASE_TLS
+        value: "true"
+      - key: DATABASE_CA_FILE
+        value: certs/prod-ca-2021.crt
+      - key: AUTH_AUDIENCE
+        value: vendora-web
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: ENABLE_WHATSAPP
+        value: "false"
+      - key: YARNGPT_VOICE
+        value: idera
+      # Pasted from vendora-render.env (Environment > Add from .env). Never commit these.
+      - key: DATABASE_URL
         sync: false
       - key: AUTH_PRIVATE_KEY
         sync: false
@@ -36,21 +50,15 @@ services:
         sync: false
       - key: AUTH_KEY_ID
         sync: false
-      - key: AUTH_ISSUER
-        sync: false
-      - key: AUTH_AUDIENCE
-        sync: false
       - key: DELIVERY_ENCRYPTION_KEY
-        sync: false
-      - key: DELIVERY_URL
-        sync: false
-      - key: DELIVERY_TOKEN
-        sync: false
-      - key: TRUST_PROXY
         sync: false
       - key: YARNGPT_API_KEY
         sync: false
-      - key: YARNGPT_VOICE
-        value: idera
-      - key: CORS_ORIGINS
-        sync: false
+      # AUTH_ISSUER, CORS_ORIGINS and PUBLIC_API_ORIGIN default to this service's own https address.
+
+  - type: keyvalue
+    name: vendora-redis
+    plan: free
+    region: oregon
+    maxmemoryPolicy: noeviction
+    ipAllowList: []

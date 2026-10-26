@@ -30,7 +30,8 @@
     "phase1:seed": "tsx scripts/phase1-seed.ts",
     "phase1:verify": "tsx scripts/phase1-verify.ts",
     "phase1:down": "tsx scripts/phase1-down.ts",
-    "phase1:constraints": "tsx scripts/phase1-constraints.ts"
+    "phase1:constraints": "tsx scripts/phase1-constraints.ts",
+    "secrets": "node scripts/generate-secrets.mjs"
   },
   "engines": {
     "node": ">=22.12 <23 || >=24 <25"

@@ -18,6 +18,9 @@ import {
 } from "lucide-react";
 
 import { useStore, Toasts } from "./components/ui.jsx";
+// Phone-only build (GitHub Pages without a server): no sign-in step, everything saved on the phone.
+// Set VITE_LOCAL_ONLY=true at build time. Leave it unset when the site proxies /api to the server.
+const LOCAL_ONLY = import.meta.env.VITE_LOCAL_ONLY === "true";
 
 import {
   loadDemo,
@@ -29,14 +32,34 @@ import {
   updateProfile,
 } from "./lib/store.js";
 
-
 import { primeSpeech, haptic } from "./lib/voice.js";
 import { useAuthStore } from "./features/auth/authStore.js";
 import { authApi } from "./features/auth/authApi.js";
 import { clearPrivateCaches } from "./lib/privacy.js";
 import { restoreSession } from "./features/auth/authSession.js";
-import { startAccountSync, getActiveSync } from './features/sync/accountSync.js';
-import SyncStatus from './features/sync/SyncStatus.jsx';
+import {
+  startAccountSync,
+  getActiveSync,
+} from "./features/sync/accountSync.js";
+import SyncStatus from "./features/sync/SyncStatus.jsx";
+import {
+  getLastEnrolledAccount,
+  recordOnlineVerification,
+  isEnrolledForOfflineAccess,
+  unlockOfflineAccess,
+} from "./features/security/offlineEnrollment.js";
+import { replicaScope } from "./features/sync/replicaRepository.js";
+import { encryptedReplicaRepository } from "./features/security/encryptedReplicaRepository.js";
+import {
+  isOfflineSessionActive,
+  getOfflineSessionState,
+  subscribeOfflineSession,
+  checkSessionExpiry,
+  clearOfflineSession,
+} from "./features/security/offlineSession.js";
+import OfflineUnlockScreen from "./screens/OfflineUnlockScreen.jsx";
+import AuthBanner from "./components/AuthBanner.jsx";
+import AuthScenes from "./components/AuthScenes.jsx";
 
 import Welcome from "./screens/Welcome.jsx";
 import Setup from "./screens/Setup.jsx";
@@ -52,7 +75,7 @@ import LoanApply from "./screens/LoanApply.jsx";
 import Score from "./screens/Score.jsx";
 import Records from "./screens/Records.jsx";
 import Profile from "./screens/Profile.jsx";
-import Password, { PasswordRecovery } from './screens/Password.jsx';
+import Password, { PasswordRecovery } from "./screens/Password.jsx";
 import Staff from "./screens/Staff.jsx";
 import Premium from "./screens/Premium.jsx";
 import WhatsApp from "./screens/WhatsApp.jsx";
@@ -126,6 +149,7 @@ function StatusScreen({ title, message, action, actionLabel }) {
 
 function AuthScreen({ onDemo, expired = false }) {
   const [recovering, setRecovering] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [mode, setMode] = useState("login");
   const [form, setForm] = useState({
     name: "",
@@ -138,6 +162,13 @@ function AuthScreen({ onDemo, expired = false }) {
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  const switchMode = (next) => {
+    if (next === mode) return;
+    setError("");
+    setShowPassword(false);
+    setMode(next);
+  };
 
   const change = (field, value) => {
     setForm((previous) => ({
@@ -160,7 +191,8 @@ function AuthScreen({ onDemo, expired = false }) {
       const phone = form.phone.trim();
       const passwordLength = [...form.password].length;
       const normalizedPhone = phone.replace(/[ +()-]/g, "");
-      const validPhone = /^0\d{10}$/.test(normalizedPhone) ||
+      const validPhone =
+        /^0\d{10}$/.test(normalizedPhone) ||
         /^[1-9]\d{9,14}$/.test(normalizedPhone);
 
       if (name.length < 2 || name.length > 200) {
@@ -183,15 +215,17 @@ function AuthScreen({ onDemo, expired = false }) {
         return;
       }
 
-      if (![
-        "Foodstuff",
-        "Provisions",
-        "Clothing",
-        "Phones & accessories",
-        "Cosmetics",
-        "Pharmacy",
-        "Other",
-      ].includes(form.businessType)) {
+      if (
+        ![
+          "Foodstuff",
+          "Provisions",
+          "Clothing",
+          "Phones & accessories",
+          "Cosmetics",
+          "Pharmacy",
+          "Other",
+        ].includes(form.businessType)
+      ) {
         setError("Please select a valid business type.");
         return;
       }
@@ -224,6 +258,21 @@ function AuthScreen({ onDemo, expired = false }) {
         throw new Error("Unable to verify your session.");
       }
 
+      const defaultBizId = session.memberships?.[0]?.businessId;
+      if (defaultBizId && isEnrolledForOfflineAccess(session.user.id, defaultBizId)) {
+        try {
+          const { accountKey } = await unlockOfflineAccess({
+            userId: session.user.id,
+            businessId: defaultBizId,
+            password: form.password,
+          });
+          const scope = replicaScope(session.user.id, defaultBizId);
+          encryptedReplicaRepository.setAccountKey(scope, accountKey);
+        } catch {
+          // If unwrap fails, online locked storage will handle it.
+        }
+      }
+
       useAuthStore.getState().setSession({
         user: session.user,
         memberships: session.memberships || [],
@@ -235,172 +284,246 @@ function AuthScreen({ onDemo, expired = false }) {
     }
   };
 
-  if (recovering) return <PasswordRecovery onBack={() => setRecovering(false)} />;
-
-  const fieldStyle = {
-    width: "100%",
-    padding: 12,
-    marginBottom: 12,
-    borderRadius: 8,
-    border: "1px solid #aaa",
-    boxSizing: "border-box",
-  };
+  if (recovering)
+    return <PasswordRecovery onBack={() => setRecovering(false)} />;
 
   return (
-    <div className="device onboarding">
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 420,
-          margin: "auto",
-          padding: 24,
-          boxSizing: "border-box",
-        }}
-      >
-        <h1>Vendora</h1>
-        {expired && <p role="status">Your session has ended. Sign in again. Your offline records are saved.</p>}
+    <div className="device onboarding vendora-auth-layout">
+      {/* Desktop Brand Banner */}
+      <AuthBanner />
 
-        <p>
-          {mode === "login"
-            ? "Sign in to your business."
-            : "Create your Vendora account."}
-        </p>
+      {/* Form Column */}
+      <div className="vendora-auth-form-column">
+        <div className="vendora-auth-mobile-header">
+          <div className="vendora-auth-brand">
+            <span className="vendora-auth-brand-icon" aria-hidden="true">
+              V
+            </span>
+            <span>Vendora</span>
+          </div>
 
-        <form onSubmit={submit}>
-          {mode === "register" && (
-            <input
-              style={fieldStyle}
-              placeholder="Full name"
-              aria-label="Full name"
-              value={form.name}
-              onChange={(e) => change("name", e.target.value)}
-              required
-            />
-          )}
+          <AuthScenes compact />
 
-          <input
-            style={fieldStyle}
-            placeholder="Phone number"
-            aria-label="Phone number"
-            type="tel"
-            value={form.phone}
-            onChange={(e) => change("phone", e.target.value)}
-            required
-          />
-
-          <input
-            style={fieldStyle}
-            placeholder="Password"
-            aria-label="Password"
-            type="password"
-            value={form.password}
-            onChange={(e) => change("password", e.target.value)}
-            required
-          />
-
-          {mode === "register" && (
-            <>
-              <input
-                style={fieldStyle}
-                placeholder="Business name"
-                aria-label="Business name"
-                value={form.businessName}
-                onChange={(e) => change("businessName", e.target.value)}
-                required
-              />
-
-              <select
-                style={{
-                  ...fieldStyle,
-                  background: "#fff",
-                  color: "#101b3d",
-                  minHeight: 48,
-                  cursor: "pointer",
-                }}
-                aria-label="Business type"
-                value={form.businessType}
-                onChange={(e) => change("businessType", e.target.value)}
-                required
-              >
-                <option value="" disabled>Select business type</option>
-                {[
-                  "Foodstuff",
-                  "Provisions",
-                  "Clothing",
-                  "Phones & accessories",
-                  "Cosmetics",
-                  "Pharmacy",
-                  "Other",
-                ].map((type) => (
-                  <option key={type} value={type}>{type}</option>
-                ))}
-              </select>
-
-              <input
-                style={fieldStyle}
-                placeholder="City"
-                aria-label="City"
-                value={form.city}
-                onChange={(e) => change("city", e.target.value)}
-                required
-              />
-            </>
-          )}
-
-          {error && (
-            <p role="alert" style={{ color: "#b91c1c" }}>
-              {error}
-            </p>
-          )}
-
-          <button type="submit" disabled={busy}>
-            {busy
-              ? "Please wait..."
-              : mode === "login"
-                ? "Sign in"
-                : "Create account"}
-          </button>
-        </form>
-
-        <p>
-          <button
-            type="button"
-            onClick={() => {
-              setError("");
-              setMode(mode === "login" ? "register" : "login");
-            }}
-          >
+          <h1>{mode === "login" ? "Welcome back!" : "Join Vendora"}</h1>
+          <p>
             {mode === "login"
-              ? "Create a new account"
-              : "Already have an account? Sign in"}
-          </button>
-        </p>
+              ? "Your business, right at your fingertips."
+              : "Let's get your business ready for better sales."}
+          </p>
+        </div>
 
-        {mode === 'login' && <p><button type="button" onClick={() => setRecovering(true)}>Forgot password?</button></p>}
-        {mode === 'register' && <p>Use 8–128 characters and avoid common passwords.</p>}
-        <button type="button" onClick={onDemo}>
-          Explore demo
-        </button>
+        <div className="vendora-auth-card-container">
+          <div
+            className={`vendora-auth-card ${
+              mode === "register" ? "vendora-auth-card-register" : ""
+            }`}
+          >
+            <div className="vendora-auth-tabs" data-mode={mode}>
+              <button
+                type="button"
+                aria-pressed={mode === "login"}
+                aria-label="Sign in to your account"
+                onClick={() => switchMode("login")}
+              >
+                Sign in
+              </button>
+              <button
+                type="button"
+                aria-pressed={mode === "register"}
+                aria-label="Create a new account"
+                onClick={() => switchMode("register")}
+              >
+                New account
+              </button>
+            </div>
+            <div className="vendora-auth-mode" key={mode}>
+            <h2>{mode === "login" ? "Sign in" : "Create account"}</h2>
+            <p className="vendora-auth-subtitle">
+              {mode === "login"
+                ? "Enter your details to continue."
+                : "Tell us a little about yourself and your business."}
+            </p>
+
+            {expired && (
+              <p role="status" className="vendora-auth-notice">
+                Your session has ended. Sign in again. Your offline records are
+                saved.
+              </p>
+            )}
+
+            <form onSubmit={submit} className="vendora-auth-form">
+              {mode === "register" && (
+                <label className="vendora-auth-field">
+                  <span>Full name</span>
+                  <input
+                    placeholder="Your full name"
+                    autoComplete="name"
+                    value={form.name}
+                    onChange={(e) => change("name", e.target.value)}
+                    required
+                  />
+                </label>
+              )}
+
+              <label className="vendora-auth-field">
+                <span>Phone number</span>
+                <input
+                  type="tel"
+                  placeholder="08012345678"
+                  autoComplete="tel"
+                  value={form.phone}
+                  onChange={(e) => change("phone", e.target.value)}
+                  required
+                />
+              </label>
+
+              <label className="vendora-auth-field">
+                <span>Password</span>
+                <div className="vendora-auth-password">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter your password"
+                    autoComplete={
+                      mode === "login" ? "current-password" : "new-password"
+                    }
+                    value={form.password}
+                    onChange={(e) => change("password", e.target.value)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="vendora-auth-password-toggle"
+                    onClick={() => setShowPassword((previous) => !previous)}
+                    aria-label={
+                      showPassword ? "Hide password" : "Show password"
+                    }
+                    aria-pressed={showPassword}
+                  >
+                    {showPassword ? "Hide" : "Show"}
+                  </button>
+                </div>
+              </label>
+
+              {mode === "register" && (
+                <>
+                  <label className="vendora-auth-field">
+                    <span>Business name</span>
+                    <input
+                      placeholder="Your business name"
+                      value={form.businessName}
+                      onChange={(e) => change("businessName", e.target.value)}
+                      required
+                    />
+                  </label>
+
+                  <label className="vendora-auth-field">
+                    <span>Business type</span>
+                    <select
+                      value={form.businessType}
+                      onChange={(e) => change("businessType", e.target.value)}
+                      required
+                    >
+                      <option value="" disabled>
+                        Select business type
+                      </option>
+                      {[
+                        "Foodstuff",
+                        "Provisions",
+                        "Clothing",
+                        "Phones & accessories",
+                        "Cosmetics",
+                        "Pharmacy",
+                        "Other",
+                      ].map((type) => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="vendora-auth-field">
+                    <span>City</span>
+                    <input
+                      placeholder="e.g. Lagos"
+                      value={form.city}
+                      onChange={(e) => change("city", e.target.value)}
+                      required
+                    />
+                  </label>
+
+                  <p className="vendora-auth-hint">
+                    Use 8 to 128 characters and avoid common passwords.
+                  </p>
+                </>
+              )}
+
+              {error && (
+                <p role="alert" className="vendora-auth-error">
+                  {error}
+                </p>
+              )}
+
+              {mode === "login" && (
+                <button
+                  type="button"
+                  className="vendora-auth-forgot"
+                  onClick={() => setRecovering(true)}
+                >
+                  Forgot password?
+                </button>
+              )}
+
+              <button
+                type="submit"
+                className="btn primary full"
+                disabled={busy}
+              >
+                {busy
+                  ? "Please wait..."
+                  : mode === "login"
+                    ? "Sign in"
+                    : "Create account"}
+              </button>
+            </form>
+
+            </div>
+
+            <div className="vendora-auth-divider">
+              <span>or</span>
+            </div>
+
+            <button
+              type="button"
+              className="vendora-auth-demo"
+              onClick={onDemo}
+            >
+              Explore demo
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
+
 export default function App() {
   const [activeScope, setActiveScope] = useState(null);
+  const [offlineSession, setOfflineSession] = useState(getOfflineSessionState);
+  useEffect(() => subscribeOfflineSession(setOfflineSession), []);
 
   const storeState = useStore();
   const creditAlert =
     storeState.alerts?.find(
       (alert) =>
         alert.creditId &&
-        storeState.credits?.some(
-          (credit) => credit.id === alert.creditId
-        )
+        storeState.credits?.some((credit) => credit.id === alert.creditId),
     ) ?? null;
   const [loggingOut, setLoggingOut] = useState(false);
   const [authError, setAuthError] = useState("");
-  const [scopeError, setScopeError] = useState('');
+  const [scopeError, setScopeError] = useState("");
+  const [storageLocked, setStorageLocked] = useState(false);
   const [pendingLogout, setPendingLogout] = useState(false);
   const [tab, setTab] = useState("home");
   const [tabParams, setTabParams] = useState({});
@@ -420,8 +543,7 @@ export default function App() {
     if (!accountMenuOpen) return;
 
     const onPointerDown = (event) => {
-            const insideAccountMenu =
-        accountMenuRef.current?.contains(event.target);
+      const insideAccountMenu = accountMenuRef.current?.contains(event.target);
 
       const clickedHomeAvatar =
         event.target instanceof Element &&
@@ -450,44 +572,99 @@ export default function App() {
     };
   }, [accountMenuOpen]);
   const [demoMode, setDemoMode] = useState(
-    () => sessionStorage.getItem("vendora:demo-mode") === "true",
+    () => LOCAL_ONLY || sessionStorage.getItem("vendora:demo-mode") === "true",
   );
+  useEffect(() => {
+    if (demoMode) {
+      sessionStorage.setItem("vendora:demo-mode", "true");
+    } else {
+      sessionStorage.removeItem("vendora:demo-mode");
+    }
+  }, [demoMode]);
 
   useEffect(() => {
     restoreSession();
+    const handleOnline = () => {
+      restoreSession();
+    };
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
   }, []);
 
   useEffect(() => {
     void clearPrivateCaches();
   }, [user?.id, selectedBusinessId]);
 
+  useEffect(() => {
+    if (offlineSession.status !== "unlocked") return;
+    const interval = setInterval(() => {
+      checkSessionExpiry();
+    }, 60 * 1000);
+    return () => clearInterval(interval);
+  }, [offlineSession.status]);
+
   const expectedScope =
     authStatus === "authenticated" && user?.id && selectedBusinessId
       ? `account:${user.id}:${selectedBusinessId}`
+      : offlineSession.status === "unlocked" &&
+        offlineSession.userId &&
+        offlineSession.businessId
+      ? `account:${offlineSession.userId}:${offlineSession.businessId}`
       : demoMode
         ? "demo"
         : null;
   useEffect(() => {
     setActiveScope(null);
-    setScopeError('');
+    setScopeError("");
+    setStorageLocked(false);
     let cancelled = false;
 
     if (authStatus === "authenticated" && user?.id && selectedBusinessId) {
+      if (isOfflineSessionActive()) {
+        clearOfflineSession();
+      }
       const isMember = memberships.some(
         (m) => m.businessId === selectedBusinessId,
       );
 
       if (!isMember) return;
 
-      void activateAccount(user.id, selectedBusinessId).then(() => {
-        if (cancelled) return;
-        const business = memberships.find(item => item.businessId === selectedBusinessId)?.business;
-        updateProfile({ name: user.name || '', phone: user.phone || '', businessName: business?.businessName || '',
-          businessType: business?.businessType || '', city: business?.city || '', onboarded: true, demo: false });
-        setActiveScope(`account:${user.id}:${selectedBusinessId}`);
-      }).catch(error => { if (!cancelled) setScopeError(error.message); });
-      return () => { cancelled = true; };
+      void activateAccount(user.id, selectedBusinessId)
+        .then(() => {
+          if (cancelled) return;
+          const business = memberships.find(
+            (item) => item.businessId === selectedBusinessId,
+          )?.business;
+          updateProfile({
+            name: user.name || "",
+            phone: user.phone || "",
+            businessName: business?.businessName || "",
+            businessType: business?.businessType || "",
+            city: business?.city || "",
+            onboarded: true,
+            demo: false,
+          });
+          recordOnlineVerification(user.id, selectedBusinessId);
+          setActiveScope(`account:${user.id}:${selectedBusinessId}`);
+        })
+        .catch((error) => {
+          if (cancelled) return;
+          if (
+            error?.name === "StorageLockedError" ||
+            error?.message?.includes("is locked") ||
+            error?.message?.includes("locked")
+          ) {
+            setStorageLocked(true);
+          } else {
+            setScopeError(error.message);
+          }
+        });
+      return () => {
+        cancelled = true;
+      };
     }
+
+    if (isOfflineSessionActive()) return;
 
     deactivateAccount();
 
@@ -514,7 +691,6 @@ export default function App() {
 
     return stopSync;
   }, [authStatus, user?.id, selectedBusinessId, activeScope]);
-
 
   const go = useCallback((page, params = {}) => {
     haptic(8);
@@ -618,15 +794,23 @@ export default function App() {
         if (discardConfirmed === true) await sync.discardForLogout();
         else {
           await sync.sync();
-          if (await sync.pending()) { setPendingLogout(true); return; }
+          if (await sync.pending()) {
+            setPendingLogout(true);
+            return;
+          }
         }
       }
       setPendingLogout(false);
-      await authApi.logout();
+      try {
+        await authApi.logout();
+      } catch {
+        // Offline or unreachable
+      }
 
       await clearPrivateCaches();
 
       deactivateAccount();
+      clearOfflineSession();
       useAuthStore.getState().setGuest();
       setDemoMode(false);
       setActiveScope(null);
@@ -646,7 +830,34 @@ export default function App() {
     );
   }
 
-  if (authStatus === "unavailable" && !demoMode) {
+  if (offlineSession.status === "lock_expired" && !demoMode) {
+    return (
+      <StatusScreen
+        title="Offline access expired"
+        message="Your 7-day offline access period has expired. Your existing sales and business records remain safely encrypted on this device. Please connect to the internet and sign in to renew access."
+        action={logout}
+        actionLabel="Sign in online"
+      />
+    );
+  }
+
+  if (authStatus === "unavailable" && !demoMode && offlineSession.status !== "unlocked") {
+    const enrolled = getLastEnrolledAccount();
+    if (enrolled) {
+      return (
+        <OfflineUnlockScreen
+          onDemo={() => {
+            activateDemo();
+            setOnb("welcome");
+            setDemoWelcome(true);
+            setDemoMode(true);
+          }}
+          onUnlocked={({ userId, businessId }) => {
+            setActiveScope(`account:${userId}:${businessId}`);
+          }}
+        />
+      );
+    }
     return (
       <div className="device onboarding">
         <div
@@ -710,11 +921,57 @@ export default function App() {
     );
   }
 
+  if (authStatus === "authenticated" && storageLocked) {
+    const membership = memberships.find(
+      (item) => item.businessId === selectedBusinessId,
+    );
+    return (
+      <OfflineUnlockScreen
+        isOnline={true}
+        accountInfo={{
+          userId: user.id,
+          businessId: selectedBusinessId,
+          businessName:
+            membership?.business?.businessName ||
+            storeState.profile?.businessName ||
+            "Your Business",
+          userName: user.name || user.phone || "Account Holder",
+          phone: user.phone || "",
+        }}
+        onSignOut={logout}
+        memberships={memberships}
+        onSwitchBusiness={(bizId) => {
+          useAuthStore.getState().switchBusiness(bizId);
+          setStorageLocked(false);
+        }}
+        onUnlocked={({ userId, businessId }) => {
+          const scope = `account:${userId}:${businessId}`;
+          const business = memberships.find(
+            (item) => item.businessId === businessId,
+          )?.business;
+          updateProfile({
+            name: user.name || "",
+            phone: user.phone || "",
+            businessName: business?.businessName || "",
+            businessType: business?.businessType || "",
+            city: business?.city || "",
+            onboarded: true,
+            demo: false,
+          });
+          recordOnlineVerification(userId, businessId);
+          setStorageLocked(false);
+          setScopeError("");
+          setActiveScope(scope);
+        }}
+      />
+    );
+  }
+
   if (!ready) {
     return (
       <StatusScreen
         title="Loading business"
-        message={scopeError || 'Preparing your business workspace...'}
+        message={scopeError || "Preparing your business workspace..."}
         action={scopeError ? () => location.reload() : undefined}
         actionLabel="Try again"
       />
@@ -736,8 +993,8 @@ export default function App() {
         />
       );
     }
-}
-  if (authStatus !== "authenticated" && (demoWelcome || !onboarded)) {
+  }
+  if (authStatus !== "authenticated" && !isOfflineSessionActive() && (demoWelcome || !onboarded)) {
     return (
       <div className="device onboarding">
         {onb === "welcome" && (
@@ -765,9 +1022,14 @@ export default function App() {
           />
         )}
 
-        {onb === "account" && <OpenAccount back={() => setOnb("perms")} onComplete={() => setDemoWelcome(false)} />}
+        {onb === "account" && (
+          <OpenAccount
+            back={() => setOnb("perms")}
+            onComplete={() => setDemoWelcome(false)}
+          />
+        )}
 
-        {demoMode && (
+        {demoMode && !LOCAL_ONLY && (
           <div className="vendora-demo-exit-wrap">
             <button
               type="button"
@@ -805,7 +1067,14 @@ export default function App() {
   const current = top ? top.page : tab;
 
   return (
-    <NavCtx.Provider value={{ go, back, tab, openAccountMenu: () => setAccountMenuOpen((open) => !open) }}>
+    <NavCtx.Provider
+      value={{
+        go,
+        back,
+        tab,
+        openAccountMenu: () => setAccountMenuOpen((open) => !open),
+      }}
+    >
       <div className="device app">
         <nav className={"nav" + (Page ? " page-open" : "")} aria-label="Main">
           <div className="brand">
@@ -856,7 +1125,9 @@ export default function App() {
               <span className="vendora-account-avatar">
                 {authStatus === "authenticated"
                   ? (user?.name || user?.email || "A").charAt(0).toUpperCase()
-                  : "D"}
+                  : isOfflineSessionActive()
+                    ? (storeState.profile?.name || "O").charAt(0).toUpperCase()
+                    : "D"}
               </span>
 
               <span className="vendora-account-trigger-text">
@@ -864,57 +1135,69 @@ export default function App() {
                   {authStatus === "authenticated"
                     ? memberships.find(
                         (membership) =>
-                          membership.businessId === selectedBusinessId
+                          membership.businessId === selectedBusinessId,
                       )?.business?.name || "My business"
-                    : "Demo account"}
+                    : isOfflineSessionActive()
+                      ? storeState.profile?.businessName || "Offline Store"
+                      : "Demo account"}
                 </strong>
-                <small>Account settings</small>
+                <small>{isOfflineSessionActive() ? "Offline session" : "Account settings"}</small>
               </span>
 
               <span className="vendora-account-chevron" aria-hidden="true">
-                {accountMenuOpen ? "▲" : "▼"}
+                {accountMenuOpen ? "â–²" : "â–¼"}
               </span>
             </button>
 
             {accountMenuOpen && (
               <div className="vendora-account-menu">
-                {authStatus === "authenticated" &&
-                  memberships.length > 1 && (
-                    <div className="vendora-business-picker">
-                      <label htmlFor="vendora-business-select">
-                        Switch business
-                      </label>
-                      <select
-                        id="vendora-business-select"
-                        value={selectedBusinessId}
-                        onChange={(event) => {
-                          useAuthStore.getState().selectBusiness(
-                            event.target.value
-                          );
-                          setAccountMenuOpen(false);
-                        }}
-                      >
-                        {memberships.map((membership) => (
-                          <option
-                            key={membership.businessId}
-                            value={membership.businessId}
-                          >
-                            {membership.business?.name ||
-                              membership.businessId}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
+                {authStatus === "authenticated" && memberships.length > 1 && (
+                  <div className="vendora-business-picker">
+                    <label htmlFor="vendora-business-select">
+                      Switch business
+                    </label>
+                    <select
+                      id="vendora-business-select"
+                      value={selectedBusinessId}
+                      onChange={(event) => {
+                        useAuthStore
+                          .getState()
+                          .selectBusiness(event.target.value);
+                        setAccountMenuOpen(false);
+                      }}
+                    >
+                      {memberships.map((membership) => (
+                        <option
+                          key={membership.businessId}
+                          value={membership.businessId}
+                        >
+                          {membership.business?.name || membership.businessId}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 <button
                   type="button"
+                  className="vendora-account-signout"
+                  onClick={() => {
+                    setAccountMenuOpen(false);
+                    go("profile");
+                  }}
+                >
+                  Profile &amp; Settings
+                </button>
+
+                <button
+                  type="button"
+                  hidden={LOCAL_ONLY}
                   className="vendora-account-signout"
                   disabled={loggingOut}
                   onClick={() => {
                     setAccountMenuOpen(false);
 
-                    if (authStatus === "authenticated") {
+                    if (authStatus === "authenticated" || isOfflineSessionActive()) {
                       logout();
                     } else {
                       deactivateAccount();
@@ -926,7 +1209,9 @@ export default function App() {
                     ? loggingOut
                       ? "Signing out..."
                       : "Sign out"
-                    : "Exit demo"}
+                    : isOfflineSessionActive()
+                      ? "Lock account"
+                      : "Exit demo"}
                 </button>
               </div>
             )}
@@ -934,7 +1219,21 @@ export default function App() {
         </nav>
 
         <main className="main">
-          {authStatus === 'authenticated' && <SyncStatus />}
+          {authStatus === "authenticated" && <SyncStatus />}
+          {isOfflineSessionActive() && (
+            <aside
+              aria-label="Offline session status"
+              style={{
+                padding: "8px 16px",
+                background: "#e8f0fe",
+                borderBottom: "1px solid #cce0ff",
+                fontSize: 13,
+                color: "#1a73e8",
+              }}
+            >
+              <span>Offline session &bull; Local changes will sync once reconnected.</span>
+            </aside>
+          )}
           {authError && <p role="alert">{authError}</p>}
 
           {Page ? (
@@ -945,14 +1244,43 @@ export default function App() {
         </main>
 
         {creditAlert && <CreditAlert alert={creditAlert} />}
-        {pendingLogout && <div className="scrim"><section className="sheet" role="dialog" aria-modal="true" aria-label="Unsynced records">
-          <h2>Records still need to sync</h2>
-          <p>Keep this account open to synchronize them, or explicitly discard its pending uploads before signing out.</p>
-          {authError && <p role="alert">{authError}</p>}
-          <button className="btn soft full" onClick={() => setPendingLogout(false)}>Keep working</button>
-          <button className="btn primary full" disabled={loggingOut} onClick={() => logout()}>Sync and sign out</button>
-          <button className="btn danger full" disabled={loggingOut} onClick={() => logout(true)}>Discard pending uploads and sign out</button>
-        </section></div>}
+        {pendingLogout && (
+          <div className="scrim">
+            <section
+              className="sheet"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Unsynced records"
+            >
+              <h2>Records still need to sync</h2>
+              <p>
+                Keep this account open to synchronize them, or explicitly
+                discard its pending uploads before signing out.
+              </p>
+              {authError && <p role="alert">{authError}</p>}
+              <button
+                className="btn soft full"
+                onClick={() => setPendingLogout(false)}
+              >
+                Keep working
+              </button>
+              <button
+                className="btn primary full"
+                disabled={loggingOut}
+                onClick={() => logout()}
+              >
+                Sync and sign out
+              </button>
+              <button
+                className="btn danger full"
+                disabled={loggingOut}
+                onClick={() => logout(true)}
+              >
+                Discard pending uploads and sign out
+              </button>
+            </section>
+          </div>
+        )}
 
         <Toasts />
       </div>
