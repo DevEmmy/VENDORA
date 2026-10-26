@@ -51,7 +51,7 @@
     "express": "^4.22.3",
     "helmet": "8.3.0",
     "jose": "6.2.12",
-    "multer": "^2.4.0",
+    "multer": "^2.5.0",
     "music-metadata": "^12.2.2",
     "pg": "8.23.1",
     "redis": "6.3.0",
