@@ -314,7 +314,7 @@ export function PasswordRecovery({ onBack }) {
                 marginTop: 18,
                 padding: '10px 12px',
                 borderRadius: 10,
-                background: 'rgba(10, 26, 71, 0.04)',
+                background: 'rgba(26, 26, 26, 0.04)',
                 border: '1px solid var(--line)',
                 fontSize: 12,
                 lineHeight: 1.45,

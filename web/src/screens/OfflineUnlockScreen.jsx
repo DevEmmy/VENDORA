@@ -57,12 +57,12 @@ export default function OfflineUnlockScreen({
                   width: 56,
                   height: 56,
                   borderRadius: "50%",
-                  backgroundColor: "#fce8e6",
+                  backgroundColor: "#eeeeee",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   margin: "0 auto 16px",
-                  color: "#c5221f",
+                  color: "#525252",
                 }}
               >
                 <AlertCircle size={28} />
@@ -272,12 +272,12 @@ export default function OfflineUnlockScreen({
                   width: 52,
                   height: 52,
                   borderRadius: "50%",
-                  backgroundColor: "#e6f4ea",
+                  backgroundColor: "#efefef",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   margin: "0 auto 12px",
-                  color: "#137333",
+                  color: "#4f4f4f",
                 }}
               >
                 <Lock size={26} />
@@ -301,11 +301,11 @@ export default function OfflineUnlockScreen({
             {/* Account Badge */}
             <div
               style={{
-                background: "#f8f9fa",
+                background: "#f9f9f9",
                 borderRadius: 12,
                 padding: "12px 16px",
                 marginBottom: 20,
-                border: "1px solid #dadce0",
+                border: "1px solid #dcdcdc",
               }}
             >
               <div
@@ -326,7 +326,7 @@ export default function OfflineUnlockScreen({
                   gap: 6,
                   marginTop: 10,
                   fontSize: 12,
-                  color: isOnline || policy.allowed ? "#137333" : "#c5221f",
+                  color: isOnline || policy.allowed ? "#4f4f4f" : "#525252",
                   fontWeight: 600,
                 }}
               >
@@ -360,8 +360,8 @@ export default function OfflineUnlockScreen({
               <div
                 role="alert"
                 style={{
-                  background: "#fce8e6",
-                  color: "#c5221f",
+                  background: "#eeeeee",
+                  color: "#525252",
                   padding: "10px 14px",
                   borderRadius: 8,
                   fontSize: 13,
@@ -424,8 +424,8 @@ export default function OfflineUnlockScreen({
               <form onSubmit={handleReconcile} className="vendora-auth-form">
                 <div
                   style={{
-                    background: "#e8f0fe",
-                    color: "#1a73e8",
+                    background: "#efefef",
+                    color: "#666666",
                     padding: "10px 12px",
                     borderRadius: 8,
                     fontSize: 12,

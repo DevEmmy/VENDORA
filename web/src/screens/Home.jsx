@@ -70,7 +70,7 @@ export default function Home() {
             <h1>{name}</h1>
             <div className="row" style={{ marginTop: 10, gap: 8, flexWrap: 'wrap' }}>
               <span className="chip-status"><span className={'dot' + (online ? '' : ' off')} />{online ? 'Online' : 'Offline, saving on this phone'}</span>
-              <button className="chip-status" onClick={() => go('records')} style={integ.ok ? undefined : { background: 'rgba(224,68,62,.25)', color: '#ffd2cf' }}>
+              <button className="chip-status" onClick={() => go('records')} style={integ.ok ? undefined : { background: 'rgba(114,114,114,.25)', color: '#dfdfdf' }}>
                 {integ.ok ? <ShieldCheck size={14} /> : <ShieldAlert size={14} />}{integ.ok ? 'Records secured' : 'Records need attention'}
               </button>
             </div>
@@ -97,7 +97,7 @@ export default function Home() {
           <span className="mic-big" style={{ width: 52, height: 52, boxShadow: 'none' }}><Mic size={24} /></span>
           <span className="grow">
             <b style={{ fontSize: 16 }}>Just talk</b>
-            <div style={{ color: '#b9c8f5', fontSize: 13.5, marginTop: 2 }}>"I sold 2 bags of rice to Emeka"</div>
+            <div style={{ color: '#c9c9c9', fontSize: 13.5, marginTop: 2 }}>"I sold 2 bags of rice to Emeka"</div>
           </span>
           <ChevronRight size={20} />
         </button>
@@ -155,7 +155,7 @@ export default function Home() {
 
         {owner && (
           <button className="card row" style={{ width: '100%', marginTop: 12, textAlign: 'left' }} onClick={() => go('score')}>
-            <span className="ring" style={{ width: 58, height: 58, margin: 0, background: `conic-gradient(var(--royal) ${score.score * 3.6}deg, #e9edf5 0)` }}>
+            <span className="ring" style={{ width: 58, height: 58, margin: 0, background: `conic-gradient(var(--royal) ${score.score * 3.6}deg, #ededed 0)` }}>
               <span className="in" style={{ width: 46, height: 46, fontWeight: 800 }}>{score.score}</span>
             </span>
             <span className="grow">

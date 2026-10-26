@@ -14,7 +14,7 @@ export default function SyncStatus() {
   const action = async callback => { setError(''); try { await callback(); } catch (failure) { setError(failure.message); } };
   const actionName = action => ({ 'sale.create': 'Sale', 'sale.reverse': 'Sale cancellation', 'sale.payment': 'Debt payment',
     'stock.restock': 'Restock', 'stock.count': 'Stock count', 'product.create': 'New item', 'product.update': 'Item edit', 'product.delete': 'Item removal' }[action] || 'Business record');
-  return <section aria-label="Sync status" style={{ padding: '10px 18px', background: '#f3f5fa', borderBottom: '1px solid #dce2ee' }}>
+  return <section aria-label="Sync status" style={{ padding: '10px 18px', background: '#f5f5f5', borderBottom: '1px solid #e2e2e2' }}>
     <button type="button" className="link" onClick={() => setOpen(value => !value)} aria-expanded={open}>{label}</button>
     {(open || state.phase === 'needs-attention') && <div>
       {state.lastError && <p role="alert">{state.lastError.message}</p>}

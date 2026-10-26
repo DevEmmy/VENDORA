@@ -6,7 +6,7 @@ import React, { useEffect, useRef, useState } from 'react';
  * Each scene's own animation replays when it comes on screen.
  */
 
-const C = { ink: '#0a1a47', royal: '#1f55e0', royal2: '#3a72ff', kola: '#f5b400', leaf: '#0f9d58', pepper: '#e0443e', cream: '#fdf3d8', sand: '#f3dfae', wood: '#8a6a3e' };
+const C = { ink: '#1a1a1a', royal: '#555555', royal2: '#717171', kola: '#b3b3b3', leaf: '#6b6b6b', pepper: '#727272', cream: '#f3f3f3', sand: '#dfdfdf', wood: '#6f6f6f' };
 
 function Awning({ y = 0 }) {
   return (
@@ -23,7 +23,7 @@ function Phone({ x, y, children, w = 92, h = 150 }) {
     <g transform={`translate(${x} ${y})`}>
       <rect width={w} height={h} rx="14" fill={C.ink} />
       <rect x="5" y="9" width={w - 10} height={h - 18} rx="9" fill="#fff" />
-      <rect x={w / 2 - 12} y="3" width="24" height="3" rx="1.5" fill="#2a3a6b" />
+      <rect x={w / 2 - 12} y="3" width="24" height="3" rx="1.5" fill="#3b3b3b" />
       {children}
     </g>
   );
@@ -39,7 +39,7 @@ function VoiceScene() {
       {/* rice sacks on the counter */}
       {[0, 1, 2].map(i => (
         <g key={i} transform={`translate(${196 + i * 34} 120)`}>
-          <path d="M2 40 q-3 -28 8 -36 h14 q11 8 8 36 z" fill="#efe3c7" stroke="#c9b48a" strokeWidth="1.5" />
+          <path d="M2 40 q-3 -28 8 -36 h14 q11 8 8 36 z" fill="#e3e3e3" stroke="#b5b5b5" strokeWidth="1.5" />
           <rect x="8" y="16" width="18" height="8" rx="2" fill={C.royal} opacity=".85" />
         </g>
       ))}
@@ -71,22 +71,22 @@ function VoiceScene() {
 function TransferScene() {
   return (
     <svg viewBox="0 0 320 190" aria-hidden="true">
-      <rect width="320" height="190" fill="#e9efff" />
-      {[0, 1, 2, 3, 4].map(i => <circle key={i} cx={30 + i * 70} cy={170 - (i % 2) * 12} r={38} fill="#dbe5ff" />)}
+      <rect width="320" height="190" fill="#efefef" />
+      {[0, 1, 2, 3, 4].map(i => <circle key={i} cx={30 + i * 70} cy={170 - (i % 2) * 12} r={38} fill="#e5e5e5" />)}
       {/* the fake alert, struck out */}
       <g className="vas-fake" transform="translate(178 34) rotate(7)">
         <rect width="118" height="62" rx="12" fill="#fff" stroke={C.pepper} strokeOpacity=".35" />
-        <text x="12" y="22" fontSize="10.5" fontWeight="700" fill="#8a93ab">Credit alert</text>
-        <text x="12" y="42" fontSize="15" fontWeight="800" fill="#8a93ab">₦80,000</text>
+        <text x="12" y="22" fontSize="10.5" fontWeight="700" fill="#939393">Credit alert</text>
+        <text x="12" y="42" fontSize="15" fontWeight="800" fill="#939393">₦80,000</text>
         <g className="vas-pop" style={{ animationDelay: '1.4s' }}>
           <rect x="-6" y="44" width="92" height="22" rx="11" fill={C.pepper} />
           <text x="6" y="59" fontSize="10.5" fontWeight="800" fill="#fff">Fake, blocked</text>
         </g>
       </g>
       <Phone x={40} y={22} w={120} h={156}>
-        <text x="16" y="34" fontSize="10.5" fontWeight="700" fill="#4b5675">Money in</text>
+        <text x="16" y="34" fontSize="10.5" fontWeight="700" fill="#565656">Money in</text>
         <text x="16" y="58" fontSize="20" fontWeight="800" fill={C.ink}>₦45,000</text>
-        <text x="16" y="76" fontSize="10.5" fill="#4b5675">from Tunde A.</text>
+        <text x="16" y="76" fontSize="10.5" fill="#565656">from Tunde A.</text>
         <g className="vas-stamp" style={{ animationDelay: '.5s' }}>
           <circle cx="60" cy="104" r="22" fill={C.leaf} />
           <path className="vas-draw" style={{ animationDelay: '.85s' }} d="M50 104 l7 7 l13 -14" stroke="#fff" strokeWidth="4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
@@ -104,7 +104,7 @@ function StockScene() {
     { x: 92, h: 84, c: C.kola, n: 'Oil' },
     { x: 144, h: 48, c: C.leaf, n: 'Beans' },
     { x: 196, h: 18, c: C.pepper, n: 'Milo', low: true },
-    { x: 248, h: 70, c: '#7a5cff', n: 'Sugar' },
+    { x: 248, h: 70, c: '#787878', n: 'Sugar' },
   ];
   return (
     <svg viewBox="0 0 320 190" aria-hidden="true">
@@ -133,20 +133,20 @@ function LoanScene() {
     <svg viewBox="0 0 320 190" aria-hidden="true">
       <rect width="320" height="190" fill={C.ink} />
       {Array.from({ length: 18 }, (_, i) => <circle key={i} cx={(i * 53) % 320} cy={(i * 37) % 120 + 10} r={i % 3 ? 1 : 1.6} fill="#fff" opacity=".35" />)}
-      <path d={arc} stroke="#1d3274" strokeWidth="16" fill="none" strokeLinecap="round" />
+      <path d={arc} stroke="#333333" strokeWidth="16" fill="none" strokeLinecap="round" />
       <path className="vas-gauge" d={arc} stroke={C.kola} strokeWidth="16" fill="none" strokeLinecap="round" pathLength="100" />
       <text x="114" y="132" fontSize="34" fontWeight="800" fill="#fff" textAnchor="middle">742</text>
-      <text x="114" y="151" fontSize="10.5" fontWeight="700" fill="#b9c8f5" textAnchor="middle">Business Score</text>
+      <text x="114" y="151" fontSize="10.5" fontWeight="700" fill="#c9c9c9" textAnchor="middle">Business Score</text>
       {[0, 1, 2].map(i => (
         <g key={i} className="vas-coin" style={{ animationDelay: `${1 + i * 0.25}s` }}>
-          <circle cx={262 + (i - 1) * 14} cy="70" r="9" fill={C.kola} stroke="#c98f00" strokeWidth="2" />
-          <text x={262 + (i - 1) * 14} y="74" fontSize="10" fontWeight="800" fill="#7a5600" textAnchor="middle">₦</text>
+          <circle cx={262 + (i - 1) * 14} cy="70" r="9" fill={C.kola} stroke="#909090" strokeWidth="2" />
+          <text x={262 + (i - 1) * 14} y="74" fontSize="10" fontWeight="800" fill="#575757" textAnchor="middle">₦</text>
         </g>
       ))}
       <g className="vas-rise" style={{ animationDelay: '1.7s' }}>
         <rect x="222" y="112" width="84" height="40" rx="10" fill={C.leaf} />
         <text x="264" y="129" fontSize="10" fontWeight="800" fill="#fff" textAnchor="middle">₦300,000</text>
-        <text x="264" y="143" fontSize="8.5" fontWeight="700" fill="#d8f5e5" textAnchor="middle">to your seller</text>
+        <text x="264" y="143" fontSize="8.5" fontWeight="700" fill="#ebebeb" textAnchor="middle">to your seller</text>
       </g>
     </svg>
   );

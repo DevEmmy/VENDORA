@@ -139,9 +139,9 @@ function SendToWema() {
 
   return (
     <>
-      <div className="card" style={{ background: 'linear-gradient(160deg, #0a1a47, #1f3b9a)', color: '#fff' }}>
+      <div className="card" style={{ background: 'linear-gradient(160deg, #1a1a1a, #3d3d3d)', color: '#fff' }}>
         <div className="row"><ShieldCheck size={22} style={{ color: 'var(--kola-2)' }} /><b style={{ fontSize: 16 }}>Proof behind your Business Score</b></div>
-        <div style={{ color: '#d7e0fb', fontSize: 14, marginTop: 8, lineHeight: 1.45 }}>Wema sees your score. This file lets them check it against every invoice, every payment Wema confirmed, every delivery and your sealed record. It makes your loan faster and harder for anyone to question.</div>
+        <div style={{ color: '#e0e0e0', fontSize: 14, marginTop: 8, lineHeight: 1.45 }}>Wema sees your score. This file lets them check it against every invoice, every payment Wema confirmed, every delivery and your sealed record. It makes your loan faster and harder for anyone to question.</div>
       </div>
       <span className="label">Which period?</span>
       <div className="chips">{Object.entries(SEND).map(([k, [l]]) => <button key={k} className="chip" aria-pressed={period === k} onClick={() => setPeriod(k)}>{l}</button>)}</div>

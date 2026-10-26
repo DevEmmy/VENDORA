@@ -37,11 +37,11 @@ export function invoiceText(inv) {
 const esc = x => String(x ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 export function invoiceHtml(inv) {
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(inv.no)}</title><style>
-  body{font-family:system-ui,Segoe UI,Roboto,sans-serif;color:#0d1630;margin:32px;max-width:640px}
-  h1{font-size:22px;margin:0}.m{color:#4b5675;font-size:13px}table{width:100%;border-collapse:collapse;margin:18px 0}
-  td,th{padding:8px 6px;border-bottom:1px solid #e4e8f1;text-align:left;font-size:14px}th{font-size:12px;color:#4b5675}
-  .r{text-align:right}.tot td{font-weight:700;border:0}.box{border:1px solid #e4e8f1;border-radius:10px;padding:12px;font-size:13px;margin-top:12px}
-  .x{color:#e0443e;font-weight:700}</style></head><body>
+  body{font-family:system-ui,Segoe UI,Roboto,sans-serif;color:#161616;margin:32px;max-width:640px}
+  h1{font-size:22px;margin:0}.m{color:#565656;font-size:13px}table{width:100%;border-collapse:collapse;margin:18px 0}
+  td,th{padding:8px 6px;border-bottom:1px solid #e8e8e8;text-align:left;font-size:14px}th{font-size:12px;color:#565656}
+  .r{text-align:right}.tot td{font-weight:700;border:0}.box{border:1px solid #e8e8e8;border-radius:10px;padding:12px;font-size:13px;margin-top:12px}
+  .x{color:#727272;font-weight:700}</style></head><body>
   <div style="display:flex;justify-content:space-between;gap:16px"><div><h1>${esc(inv.shop.name)}</h1>
   <div class="m">${esc(inv.shop.owner)} · ${esc(inv.shop.phone)}<br>${esc(inv.shop.area || '')}${inv.shop.cac ? `<br>CAC ${esc(inv.shop.cac)}` : ''}</div></div>
   <div style="text-align:right"><h1>Invoice</h1><div class="m">${esc(inv.no)}<br>${d8(inv.at)}, ${tm(inv.at)}</div></div></div>

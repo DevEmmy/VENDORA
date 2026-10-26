@@ -137,17 +137,17 @@ export default function Profile() {
         >
           {enrolled ? (
             <div>
-              <div className="card row" style={{ background: '#e6f4ea', borderColor: '#ceead6', marginTop: 12 }}>
-                <ShieldCheck size={22} style={{ color: '#137333', flexShrink: 0 }} />
+              <div className="card row" style={{ background: '#efefef', borderColor: '#dfdfdf', marginTop: 12 }}>
+                <ShieldCheck size={22} style={{ color: '#4f4f4f', flexShrink: 0 }} />
                 <div className="grow">
-                  <b style={{ color: '#137333' }}>Offline access is active</b>
+                  <b style={{ color: '#4f4f4f' }}>Offline access is active</b>
                   <div className="small muted">
                     Your account is secured with password-wrapped offline encryption.
                   </div>
                 </div>
               </div>
               {offlineError && (
-                <div style={{ color: '#c5221f', background: '#fce8e6', padding: '8px 12px', borderRadius: 8, fontSize: 13, marginTop: 12 }}>
+                <div style={{ color: '#525252', background: '#eeeeee', padding: '8px 12px', borderRadius: 8, fontSize: 13, marginTop: 12 }}>
                   {offlineError}
                 </div>
               )}
@@ -180,7 +180,7 @@ export default function Profile() {
           ) : (
             <div style={{ marginTop: 12 }}>
               {offlineError && (
-                <div style={{ color: '#c5221f', background: '#fce8e6', padding: '8px 12px', borderRadius: 8, fontSize: 13, marginBottom: 12 }}>
+                <div style={{ color: '#525252', background: '#eeeeee', padding: '8px 12px', borderRadius: 8, fontSize: 13, marginBottom: 12 }}>
                   {offlineError}
                 </div>
               )}
