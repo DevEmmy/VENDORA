@@ -9,6 +9,7 @@ const keys = generateKeyPairSync("rsa", {
   publicKeyEncoding: { type: "spki", format: "pem" },
 });
 export const env = {
+  VOICE_MOCK_MODE: 'true',
   NODE_ENV: "test",
   DATABASE_URL: "postgresql://test:test@localhost:5432/vendora_test",
   DATABASE_TLS: "false",

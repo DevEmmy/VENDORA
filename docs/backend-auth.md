@@ -201,6 +201,22 @@ requires a session, membership and a body containing only `text`.
 
 ## Validation and release gates
 
+Background delivery polling only runs when both `DELIVERY_URL` and
+`DELIVERY_TOKEN` are configured. Empty queues pause for five seconds; worker
+failures back off up to thirty seconds without overlapping another run.
+Claims use one atomic SQL statement rather than an interactive transaction.
+An unconfigured delivery gateway does not prevent inventory or voice use.
+Request-unavailable logs include a fixed diagnostic hint without provider errors,
+connection strings or credentials. A successful `/health` only proves the HTTP
+listener is running; it does not guarantee database/Redis health for a request.
+
+Hosted database transaction acquisition uses
+`DATABASE_TRANSACTION_MAX_WAIT_MS=15000` and a default execution bound of
+`DATABASE_TRANSACTION_TIMEOUT_MS=20000`. Individual operations may specify their
+own execution limits. Cold remote connections can exceed Prisma's two-second
+default transaction wait; these settings keep the wait bounded without retrying
+inventory writes. SQL statement/query deadlines and pool size remain separate.
+
 `npm test` runs HTTP/JWT/password security checks and parser/finance tests.
 `npm run test:integration` starts isolated native PostgreSQL, applies the committed
 Prisma migration, and checks immediate signup/login, duplicate signup, refresh concurrency/replay,
