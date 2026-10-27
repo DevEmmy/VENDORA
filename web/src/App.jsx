@@ -1225,10 +1225,10 @@ export default function App() {
               aria-label="Offline session status"
               style={{
                 padding: "8px 16px",
-                background: "#e8f0fe",
-                borderBottom: "1px solid #cce0ff",
+                background: "#efefef",
+                borderBottom: "1px solid #dedede",
                 fontSize: 13,
-                color: "#1a73e8",
+                color: "#666666",
               }}
             >
               <span>Offline session &bull; Local changes will sync once reconnected.</span>

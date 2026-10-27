@@ -125,7 +125,7 @@ function BankCard() {
         <div className="field" style={{ marginTop: 14, border: 0 }}>
           <input value={id} onChange={e => setId(e.target.value.replace(/\D/g, '').slice(0, 11))} inputMode="numeric" placeholder="Your BVN or NIN (11 digits)" aria-label="BVN or NIN" style={{ color: 'var(--text)' }} />
         </div>
-        {err && <div style={{ color: '#ffd2cf', fontWeight: 600, fontSize: 13.5, marginTop: 8 }}>{err}</div>}
+        {err && <div style={{ color: '#dfdfdf', fontWeight: 600, fontSize: 13.5, marginTop: 8 }}>{err}</div>}
         <button className="btn kola full" style={{ marginTop: 12 }} disabled={busy || id.length !== 11} onClick={async () => {
           setBusy(true); setErr('');
           try { await openAccount(id); toast('Your Wema account is ready.', 'good'); } catch (e) { setErr(e.message); } finally { setBusy(false); }
@@ -332,15 +332,15 @@ function Loans() {
           </div>
         </div>
       ) : (
-        <div className="card" style={{ background: 'linear-gradient(160deg, #0a1a47, #1f3b9a)', color: '#fff' }}>
+        <div className="card" style={{ background: 'linear-gradient(160deg, #1a1a1a, #3d3d3d)', color: '#fff' }}>
           <div className="row between">
             <b style={{ fontSize: 16 }}>Wema Restock Loan</b>
             <span className="pill" style={{ background: 'rgba(255,255,255,.14)', color: '#fff' }}>No paperwork</span>
           </div>
           {!offer ? <div className="skel" style={{ height: 70, marginTop: 14, opacity: .25 }} /> : offer.eligible ? <>
-            <div style={{ color: '#b9c8f5', fontSize: 13.5, marginTop: 14 }}>You can get up to</div>
+            <div style={{ color: '#c9c9c9', fontSize: 13.5, marginTop: 14 }}>You can get up to</div>
             <div className="money" style={{ color: 'var(--kola-2)' }}>{naira(offer.limit)}</div>
-            <div style={{ color: '#b9c8f5', fontSize: 13.5, marginTop: 6 }}>{(offer.rate * 100).toFixed(1)}% flat for {offer.tenorDays} days. Paid straight to your seller. Repay a little each day from your sales.</div>
+            <div style={{ color: '#c9c9c9', fontSize: 13.5, marginTop: 6 }}>{(offer.rate * 100).toFixed(1)}% flat for {offer.tenorDays} days. Paid straight to your seller. Repay a little each day from your sales.</div>
             <button className="btn kola full" style={{ marginTop: 16 }} onClick={() => go('loan')}>Get restock loan</button>
           </> : <>
             <div style={{ fontSize: 15, marginTop: 14, lineHeight: 1.45 }}>{offer.reason}</div>

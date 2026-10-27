@@ -70,16 +70,16 @@ export default function LoanApply({ productId, sellerId, lines: presetLines }) {
     <div className="page" style={{ paddingBottom: 30 }}>
       <Top title="Wema Restock Loan" sub="Wema pays your seller directly" onBack={back} tall />
       <div className="wrap over">
-        <div className="card" style={{ background: 'linear-gradient(160deg, #0a1a47, #1f3b9a)', color: '#fff' }}>
+        <div className="card" style={{ background: 'linear-gradient(160deg, #1a1a1a, #3d3d3d)', color: '#fff' }}>
           {!offer ? <div className="skel" style={{ height: 56, opacity: .25 }} /> : offer.eligible ? (
             <div className="row between">
-              <div><div style={{ color: '#b9c8f5', fontSize: 13 }}>Your limit</div><div className="money md" style={{ color: 'var(--kola-2)' }}>{naira(offer.limit)}</div></div>
-              <div style={{ textAlign: 'right' }}><div style={{ color: '#b9c8f5', fontSize: 13 }}>Business Score</div><b style={{ fontSize: 20 }}>{score.score}</b></div>
+              <div><div style={{ color: '#c9c9c9', fontSize: 13 }}>Your limit</div><div className="money md" style={{ color: 'var(--kola-2)' }}>{naira(offer.limit)}</div></div>
+              <div style={{ textAlign: 'right' }}><div style={{ color: '#c9c9c9', fontSize: 13 }}>Business Score</div><b style={{ fontSize: 20 }}>{score.score}</b></div>
             </div>
           ) : (
             <>
               <div className="row"><CircleAlert size={22} /><b>Not available yet</b></div>
-              <div style={{ marginTop: 8, lineHeight: 1.45, color: '#d7e0fb' }}>{offer.reason}</div>
+              <div style={{ marginTop: 8, lineHeight: 1.45, color: '#e0e0e0' }}>{offer.reason}</div>
               <button className="btn kola full" style={{ marginTop: 14 }} onClick={() => go('score')}>See how to qualify</button>
             </>
           )}

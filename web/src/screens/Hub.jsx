@@ -60,7 +60,7 @@ function MyAdCard({ ad, s }) {
   const cover = ad.media?.[0];
   return (
     <button className="ad-card" onClick={() => go('advert')} style={{ border: '2px solid var(--kola)' }}>
-      <div className="hero-media">{cover ? <Media m={cover} /> : <ShopArt color="#a77600" keys={s.products.map(keyFor).filter(Boolean)} />}
+      <div className="hero-media">{cover ? <Media m={cover} /> : <ShopArt color="#777777" keys={s.products.map(keyFor).filter(Boolean)} />}
         <span className="pill kola" style={{ position: 'absolute', top: 10, left: 10 }}>Your advert</span></div>
       <div className="body">
         <b className="clip" style={{ display: 'block' }}>{s.profile.businessName}</b>
@@ -147,7 +147,7 @@ export default function Hub({ focus }) {
               <span className="grow">
                 <span className="tag">Deal for your shop</span>
                 <h3>Save {naira(bestDeal.saving)} on every {bestDeal.item.unit} of {bestDeal.product.name}</h3>
-                <span style={{ color: '#c5d3fb', fontSize: 14 }}>{naira(bestDeal.item.price)} at {bestDeal.seller.name}, {bestDeal.seller.market}</span>
+                <span style={{ color: '#d3d3d3', fontSize: 14 }}>{naira(bestDeal.item.price)} at {bestDeal.seller.name}, {bestDeal.seller.market}</span>
                 <span className="btn kola sm" style={{ marginTop: 12 }}>Order now</span>
               </span>
               <span className="art"><ProductArt k={bestDeal.item.key} plain /></span>

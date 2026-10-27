@@ -26,7 +26,7 @@ export default function Score() {
       <Top title="Business Score" sub="What Wema sees when you ask for a loan" onBack={back} tall />
       <div className="wrap over">
         <div className="card center">
-          <div className="ring" style={{ background: `conic-gradient(${color} ${sc.score * 3.6}deg, #e9edf5 0)` }}>
+          <div className="ring" style={{ background: `conic-gradient(${color} ${sc.score * 3.6}deg, #ededed 0)` }}>
             <div className="in"><div><div style={{ fontSize: 44, fontWeight: 800, letterSpacing: -1.5, lineHeight: 1 }}>{sc.score}</div><div className="small">out of 100</div></div></div>
           </div>
           <b style={{ fontSize: 19 }}>{sc.band}</b>

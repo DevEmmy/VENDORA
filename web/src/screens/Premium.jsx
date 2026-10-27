@@ -19,10 +19,10 @@ export default function Premium() {
     <div className="page" style={{ paddingBottom: 30 }}>
       <Top title="Vendora Premium" sub="For shops that are growing" onBack={back} tall />
       <div className="wrap over">
-        <div className="card center" style={{ background: 'linear-gradient(160deg, #0a1a47, #1f3b9a)', color: '#fff' }}>
+        <div className="card center" style={{ background: 'linear-gradient(160deg, #1a1a1a, #3d3d3d)', color: '#fff' }}>
           <Crown size={40} style={{ color: 'var(--kola-2)' }} />
-          <div className="money" style={{ marginTop: 8 }}>₦1,500<span style={{ fontSize: 16, fontWeight: 600, color: '#b9c8f5' }}> / month</span></div>
-          <div style={{ color: '#b9c8f5', marginTop: 6, fontSize: 14 }}>Paid from your Wema account. Cancel any time.</div>
+          <div className="money" style={{ marginTop: 8 }}>₦1,500<span style={{ fontSize: 16, fontWeight: 600, color: '#c9c9c9' }}> / month</span></div>
+          <div style={{ color: '#c9c9c9', marginTop: 6, fontSize: 14 }}>Paid from your Wema account. Cancel any time.</div>
         </div>
         <div className="list" style={{ marginTop: 14 }}>
           {FEATURES.map(([Icon, t, d]) => (

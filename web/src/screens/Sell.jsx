@@ -83,7 +83,7 @@ export default function Sell() {
       {count > 0 && (
         <div className="cartbar">
           <div className="grow">
-            <div style={{ fontSize: 13, color: '#b9c8f5' }}>{count} item{count === 1 ? '' : 's'}</div>
+            <div style={{ fontSize: 13, color: '#c9c9c9' }}>{count} item{count === 1 ? '' : 's'}</div>
             <div style={{ fontSize: 22, fontWeight: 800 }}>{naira(total)}</div>
           </div>
           <button className="btn plain sm" style={{ background: 'rgba(255,255,255,.12)', color: '#fff' }} onClick={() => setCart({})}>Clear</button>

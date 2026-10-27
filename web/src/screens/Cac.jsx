@@ -72,9 +72,9 @@ export default function Cac() {
       <Top title="CAC registration" sub="Register your business through Wema, from your phone" onBack={back} tall />
       <div className="wrap over">
         {(c.status === 'none') && <>
-          <div className="card" style={{ background: 'linear-gradient(160deg, #0a1a47, #1f3b9a)', color: '#fff' }}>
+          <div className="card" style={{ background: 'linear-gradient(160deg, #1a1a1a, #3d3d3d)', color: '#fff' }}>
             <b style={{ fontSize: 18, lineHeight: 1.3, display: 'block' }}>Save small every day. Wema registers your business for you.</b>
-            <div style={{ color: '#b9c8f5', fontSize: 14, marginTop: 8, lineHeight: 1.45 }}>Every seller on the Vendors Hub must be registered with CAC (Corporate Affairs Commission). It protects you and the people who buy from you.</div>
+            <div style={{ color: '#c9c9c9', fontSize: 14, marginTop: 8, lineHeight: 1.45 }}>Every seller on the Vendors Hub must be registered with CAC (Corporate Affairs Commission). It protects you and the people who buy from you.</div>
           </div>
           <Why />
           <div className="h2">How it works</div>
@@ -100,7 +100,7 @@ export default function Cac() {
 
         {(c.status === 'saving' || c.status === 'paused') && plan && <>
           <div className="card center">
-            <div className="ring" style={{ background: `conic-gradient(var(--leaf) ${plan.saved / plan.target * 360}deg, #e9edf5 0)` }}>
+            <div className="ring" style={{ background: `conic-gradient(var(--leaf) ${plan.saved / plan.target * 360}deg, #ededed 0)` }}>
               <div className="in"><div><div style={{ fontSize: 26, fontWeight: 800, letterSpacing: -.5 }}>{naira(plan.saved)}</div><div className="small">of {naira(plan.target)}</div></div></div>
             </div>
             <b style={{ fontSize: 17 }}>{c.status === 'paused' ? 'Saving is paused' : `${naira(plan.daily)} a day, about ${days} day${days === 1 ? '' : 's'} to go`}</b>

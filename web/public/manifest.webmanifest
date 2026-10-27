@@ -4,7 +4,7 @@
   "description": "Voice-first business assistant for traders, built on Wema Bank / ALAT",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#0b2566",
-  "theme_color": "#0b2566",
+  "background_color": "#111111",
+  "theme_color": "#111111",
   "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
 }

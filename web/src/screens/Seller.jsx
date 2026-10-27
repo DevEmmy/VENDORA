@@ -87,7 +87,7 @@ export default function SellerPage({ id, productId }) {
       {lines.length > 0 && (
         <div className="cartbar" style={{ bottom: 'calc(16px + env(safe-area-inset-bottom))' }}>
           <div className="grow">
-            <div style={{ fontSize: 13, color: '#b9c8f5' }}>{lines.reduce((a, l) => a + l.qty, 0)} {lines.length === 1 ? lines[0].unit + 's' : 'items'}</div>
+            <div style={{ fontSize: 13, color: '#c9c9c9' }}>{lines.reduce((a, l) => a + l.qty, 0)} {lines.length === 1 ? lines[0].unit + 's' : 'items'}</div>
             <div style={{ fontSize: 22, fontWeight: 800 }}>{naira(total)}</div>
           </div>
           <button className="btn kola" onClick={() => setPay(true)}>Order</button>
