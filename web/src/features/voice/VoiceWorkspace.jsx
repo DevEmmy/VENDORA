@@ -67,7 +67,7 @@ export function ConfirmationCard({ command, products, busy, onConfirm, onReject,
     return () => { active = false; controller.abort(); stop?.(); };
   }, [command.voice_log_id, preferDeviceSpeech, readbackEnabled, audioContext]);
   const edit = (index, values) => setItems(previous => previous.map((item, i) => i === index ? { ...item, ...values } : item));
-  const valid = !expired && items.length > 0 && items.every(item => item.product_id && Number.isInteger(Number(item.quantity)) &&
+  const valid = !expired && command.status !== 'needs_clarification' && items.length > 0 && items.every(item => item.product_id && Number.isInteger(Number(item.quantity)) &&
     (action === 'adjustment' ? Number(item.quantity) !== 0 : Number(item.quantity) > 0));
   return <section ref={review} tabIndex={-1} className="card voice-confirm" aria-label="Review inventory command">
     <h2>Review stock change</h2><blockquote>{command.transcript}</blockquote>
@@ -201,7 +201,7 @@ export default function VoiceWorkspace({ businessId }) {
       setToast(result.readback_text);
       void (async () => {
         let blob = null;
-        if (result.voice_log_id) {
+        if (!settings?.mock && result.voice_log_id) {
           try { blob = await request(`/api/voice/commands/${result.voice_log_id}/readback`, { responseType: 'blob' }); } catch { /* Fallback */ }
         }
         void playReadback(blob, result.readback_text, liveAudioCtx.current);
@@ -227,7 +227,7 @@ export default function VoiceWorkspace({ businessId }) {
     const text = result.receipt_text || (summary ? `Done. ${summary}.` : 'Done. Stock updated.');
     setAlerts(result.low_stock || []); setToast(text); setCommand(null); setHistoryKey(key => key + 1);
     let blob = null;
-    if (result.voice_log_id) {
+    if (!settings?.mock && result.voice_log_id) {
       try { blob = await request(`/api/voice/commands/${result.voice_log_id}/readback`, { responseType: 'blob' }); } catch { /* Fallback */ }
     }
     void playReadback(blob, text, liveAudioCtx.current);

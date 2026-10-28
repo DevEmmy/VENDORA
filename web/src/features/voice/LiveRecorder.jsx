@@ -109,7 +109,7 @@ export default function LiveRecorder(props) {
         className={`voice-mic-btn ${isListening ? 'listening' : isConnecting ? 'connecting' : isProcessing ? 'processing' : 'idle'}`}
         disabled={starting.current || props.busy}
         onClick={handleMicClick}
-        aria-label={isListening ? 'Stop listening' : isError ? 'Reconnect microphone' : 'Start live voice recording'}
+        aria-label={isListening ? 'Stop listening' : isError ? 'Reconnect microphone' : 'Start live microphone'}
       >
         {isListening ? (
           <Square size={30} fill="currentColor" />

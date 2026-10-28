@@ -381,6 +381,7 @@ function AuthScreen({ onDemo, expired = false }) {
                 <span>Password</span>
                 <div className="vendora-auth-password">
                   <input
+                    aria-label="Password"
                     type={showPassword ? "text" : "password"}
                     placeholder="Enter your password"
                     autoComplete={
