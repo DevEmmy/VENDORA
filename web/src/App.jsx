@@ -4,6 +4,7 @@ import React, {
   useContext,
   useEffect,
   useState,
+  useRef,
 } from "react";
 
 import {
@@ -420,6 +421,7 @@ function AuthScreen({ onDemo, expired = false }) {
                   <label className="vendora-auth-field">
                     <span>Business type</span>
                     <select
+                      aria-label="Business type"
                       value={form.businessType}
                       onChange={(e) => change("businessType", e.target.value)}
                       required
@@ -511,6 +513,8 @@ function AuthScreen({ onDemo, expired = false }) {
 
 export default function App() {
   const [activeScope, setActiveScope] = useState(null);
+  const currentScopeRef = useRef(activeScope);
+  currentScopeRef.current = activeScope;
   const [offlineSession, setOfflineSession] = useState(getOfflineSessionState);
   useEffect(() => subscribeOfflineSession(setOfflineSession), []);
 
@@ -615,12 +619,31 @@ export default function App() {
         ? "demo"
         : null;
   useEffect(() => {
-    setActiveScope(null);
-    setScopeError("");
-    setStorageLocked(false);
     let cancelled = false;
 
     if (authStatus === "authenticated" && user?.id && selectedBusinessId) {
+      const targetScope = `account:${user.id}:${selectedBusinessId}`;
+      if (currentScopeRef.current === targetScope) {
+        const business = memberships.find(
+          (item) => item.businessId === selectedBusinessId,
+        )?.business;
+        if (business) {
+          updateProfile({
+            name: user.name || "",
+            phone: user.phone || "",
+            businessName: business?.businessName || "",
+            businessType: business?.businessType || "",
+            city: business?.city || "",
+            onboarded: true,
+            demo: false,
+          });
+        }
+        return;
+      }
+
+      setActiveScope(null);
+      setScopeError("");
+      setStorageLocked(false);
       if (isOfflineSessionActive()) {
         clearOfflineSession();
       }
@@ -668,6 +691,7 @@ export default function App() {
     if (isOfflineSessionActive()) return;
 
     deactivateAccount();
+    setActiveScope(null);
 
     if (demoMode && authStatus !== "authenticated") {
       activateDemo();
