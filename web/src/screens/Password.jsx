@@ -86,7 +86,7 @@ export function PasswordRecovery({ onBack }) {
 
     try {
       await authApi.forgotPassword(phone.trim());
-      setMessage('If this phone number has a verified recovery destination, instructions have been dispatched. Check your recovery destination or enter your reset token below.');
+      setMessage('If this account has a verified recovery destination, instructions have been dispatched. Check your recovery destination or enter your reset token below.');
     } catch (failure) {
       setIsError(true);
       if (failure.status === 503) {
@@ -165,6 +165,10 @@ export function PasswordRecovery({ onBack }) {
                 : step === 'reset'
                   ? 'Enter the recovery token you received along with your new password.'
                   : 'Enter your registered phone number to receive recovery instructions.'}
+            </p>
+
+            <p className="vendora-auth-hint" style={{ margin: '10px 0 16px', lineHeight: 1.5 }}>
+              Recovery requires a previously verified recovery destination. A phone number alone cannot reset an account. Recovery enrollment is not available in this app yet.
             </p>
 
             {message && (
@@ -331,6 +335,7 @@ export function PasswordRecovery({ onBack }) {
             <button
               type="button"
               className="btn plain full"
+              aria-label="Back to sign in"
               onClick={onBack}
               disabled={busy}
               style={{ minHeight: 44, fontWeight: 700 }}
